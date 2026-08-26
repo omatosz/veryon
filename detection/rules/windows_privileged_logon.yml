@@ -1,0 +1,19 @@
+title: Logon com privilegio administrativo
+id: 45aed1d0-80c1-4f89-813a-596a1915b130
+status: stable
+description: >
+  Um logon usou um token com privilegios especiais/administrativos
+  (Event ID 4672). Normal em uso rotineiro de um workstation single-user,
+  mas relevante como contexto de correlacao em um ambiente multiusuario.
+logsource:
+  category: authentication
+  product: windows
+  service: security
+detection:
+  selection:
+    event_type: windows.logon.privileged
+  condition: selection
+level: low
+tags:
+  - attack.privilege_escalation
+  - attack.t1078

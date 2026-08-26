@@ -1,0 +1,22 @@
+title: Multiplas falhas de logon - Windows
+id: aa891b8c-e13f-475c-82d5-cfd22f3211a3
+status: stable
+description: >
+  5 ou mais falhas de logon (Event ID 4625) no mesmo host em uma janela
+  de 5 minutos -- padrao classico de tentativa de forca bruta local ou remota.
+logsource:
+  category: authentication
+  product: windows
+  service: security
+detection:
+  selection:
+    event_type: windows.logon.failed
+  condition: selection
+threshold:
+  group_by: host
+  count: 5
+  timeframe_minutes: 5
+level: high
+tags:
+  - attack.credential_access
+  - attack.t1110

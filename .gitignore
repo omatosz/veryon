@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Docker
+*.log
+
+# Node (frontend, fase futura)
+node_modules/
+dist/
+build/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code (config local da minha maquina, nao do projeto)
+.claude/settings.local.json
+
+# Dados locais (logs de honeypot, resultados de scan)
+data/
+collectors/windows/last_record.txt
+reports/output/

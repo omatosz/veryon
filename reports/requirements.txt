@@ -1,0 +1,4 @@
+psycopg2-binary==2.9.*
+jinja2==3.*
+weasyprint==62.*
+pydyf==0.11.*

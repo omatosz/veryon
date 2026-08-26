@@ -1,0 +1,26 @@
+title: Multiplas falhas de login SSH (forca bruta) - Linux
+id: 9430e4df-0d1c-4381-9e3b-91fcc9097d60
+status: stable
+description: >
+  5 ou mais falhas de login SSH originadas do mesmo IP em uma janela de
+  5 minutos, no host Linux monitorado.
+logsource:
+  category: authentication
+  service: linux-auth
+detection:
+  selection:
+    event_type: linux.ssh.login_failed
+  condition: selection
+# Extensao propria (nao e sintaxe oficial do Sigma): o spec formal de regras
+# de correlacao do Sigma foi considerado fora do escopo do projeto. O motor
+# de deteccao (detection/engine.py) reconhece este bloco e implementa a
+# contagem/janela via SQL diretamente.
+threshold:
+  group_by: src_ip
+  count: 5
+  timeframe_minutes: 5
+level: high
+tags:
+  - attack.credential_access
+  - attack.t1110
+  - attack.t1110.001

@@ -1,0 +1,21 @@
+title: Vulnerabilidade relevante encontrada pelo scanner (Nuclei)
+id: bbaad055-55d8-41bc-8c92-e5c86ab515f7
+status: stable
+description: >
+  O Nuclei encontrou um achado de severidade media ou superior contra um
+  dos alvos escaneados.
+logsource:
+  category: application
+  service: nuclei
+detection:
+  selection:
+    event_type: scanner.nuclei.finding
+    payload.severity:
+      - medium
+      - high
+      - critical
+  condition: selection
+level: medium
+tags:
+  - attack.reconnaissance
+  - attack.t1595

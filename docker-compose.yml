@@ -1,0 +1,176 @@
+name: soc-siem
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - core
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - core
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "${BACKEND_PORT}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
+    networks:
+      - core
+
+  cowrie:
+    image: cowrie/cowrie:latest
+    restart: unless-stopped
+    environment:
+      COWRIE_TELNET_ENABLED: "yes"
+    ports:
+      - "2222:2222"
+      - "2223:2223"
+    volumes:
+      - cowrie_var:/cowrie/cowrie-git/var
+    networks:
+      - honeypot_net
+
+  collector:
+    build: ./collector
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      COWRIE_LOG_PATH: /data/cowrie-var/log/cowrie/cowrie.json
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - cowrie_var:/data/cowrie-var:ro
+    networks:
+      - core
+
+  linux_collector:
+    build: ./collectors/linux
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      AUTH_LOG_PATH: /hostlogs/auth.log
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - /var/log/auth.log:/hostlogs/auth.log:ro
+    networks:
+      - core
+
+  juice-shop:
+    image: bkimminich/juice-shop
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - target_net
+
+  scanner:
+    build: ./scanner
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      NMAP_TARGETS: "db:5432,redis:6379,backend:8000,juice-shop@host.docker.internal:3000"
+      NUCLEI_TARGETS: "juice-shop@http://host.docker.internal:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - core
+
+  detection:
+    build: ./detection
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./detection/rules:/app/rules:ro
+    networks:
+      - core
+
+  threatintel:
+    build: ./threatintel
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY}
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY}
+      OTX_API_KEY: ${OTX_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - core
+
+  reports:
+    build: ./reports
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./reports/output:/app/output
+    networks:
+      - core
+
+networks:
+  core:
+    driver: bridge
+  honeypot_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+  target_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/24
+
+volumes:
+  db_data:
+  cowrie_var:

@@ -1,0 +1,24 @@
+title: Uso de sudo para comando potencialmente sensivel
+id: d21874b0-a81a-48d6-afcd-4b162b2d631d
+status: stable
+description: >
+  Um comando executado via sudo referencia um binario comumente usado
+  para escalonamento de privilegio, persistencia ou pivo de rede.
+logsource:
+  category: authentication
+  service: linux-auth
+detection:
+  selection:
+    event_type: linux.sudo.command
+    payload.message|contains:
+      - iptables
+      - /bin/bash
+      - "nc "
+      - wget
+      - curl
+      - chmod
+  condition: selection
+level: medium
+tags:
+  - attack.privilege_escalation
+  - attack.t1548.003

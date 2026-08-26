@@ -1,0 +1,107 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: 'Space Grotesk', sans-serif;
+    --font-sans: 'IBM Plex Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/*
+  Veryon e um app dark-only (ferramenta de operacoes de seguranca).
+  As mesmas cores valem para :root e .dark de proposito -- nao existe modo claro.
+*/
+:root,
+.dark {
+    --background: #101018;
+    --foreground: #EDEDF5;
+    --card: #1A1A24;
+    --card-foreground: #EDEDF5;
+    --popover: #1A1A24;
+    --popover-foreground: #EDEDF5;
+    --primary: #1EC1CB;
+    --primary-foreground: #0A0A0F;
+    --secondary: #23232F;
+    --secondary-foreground: #EDEDF5;
+    --muted: #1A1A24;
+    --muted-foreground: #8E8EA3;
+    --accent: #23232F;
+    --accent-foreground: #EDEDF5;
+    --destructive: #EF4444;
+    --success: #22C55E;
+    --warning: #F59E0B;
+    --border: oklch(1 0 0 / 8%);
+    --input: oklch(1 0 0 / 12%);
+    --ring: #1EC1CB;
+    /* espectro dos feixes animados do login: ciano -> azul -> violeta */
+    --chart-1: #1EC1CB;
+    --chart-2: #22A6D9;
+    --chart-3: #3B82F6;
+    --chart-4: #7C6FF0;
+    --chart-5: #A78BFA;
+    --radius: 0.625rem;
+    --sidebar: #14141C;
+    --sidebar-foreground: #EDEDF5;
+    --sidebar-primary: #1EC1CB;
+    --sidebar-primary-foreground: #0A0A0F;
+    --sidebar-accent: #1E1E29;
+    --sidebar-accent-foreground: #EDEDF5;
+    --sidebar-border: oklch(1 0 0 / 8%);
+    --sidebar-ring: #1EC1CB;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+  html {
+    @apply font-sans;
+    }
+}

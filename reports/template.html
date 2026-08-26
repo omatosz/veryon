@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Relatório SOC — {{ period_label }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2cm 1.6cm;
+    @bottom-center {
+      content: "Veryon — gerado em {{ generated_at }} — pág. " counter(page) " de " counter(pages);
+      font-size: 8pt;
+      color: #888;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+    color: #1a1a2e;
+    font-size: 10pt;
+    line-height: 1.45;
+  }
+  h1 { font-size: 22pt; margin: 0 0 4px; color: #0f172a; }
+  h2 {
+    font-size: 13pt;
+    margin: 22px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #1e293b;
+    color: #0f172a;
+  }
+  .subtitle { color: #475569; font-size: 10.5pt; margin-bottom: 2px; }
+  .meta { color: #94a3b8; font-size: 8.5pt; }
+
+  .cards { display: flex; gap: 10px; margin: 14px 0; }
+  .card {
+    flex: 1;
+    background: #f1f5f9;
+    border-left: 4px solid #334155;
+    padding: 10px 12px;
+    border-radius: 4px;
+  }
+  .card .n { font-size: 20pt; font-weight: bold; color: #0f172a; }
+  .card .l { font-size: 8pt; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+  .card.crit { border-left-color: #991b1b; }
+  .card.high { border-left-color: #dc2626; }
+  .card.medium { border-left-color: #d97706; }
+  .card.low { border-left-color: #16a34a; }
+
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 4px; font-size: 8.8pt; }
+  th {
+    text-align: left;
+    background: #1e293b;
+    color: #fff;
+    padding: 5px 7px;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+  td { padding: 5px 7px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-size: 7.5pt;
+    font-weight: bold;
+    color: #fff;
+    text-transform: uppercase;
+  }
+  .badge.critical { background: #991b1b; }
+  .badge.high { background: #dc2626; }
+  .badge.medium { background: #d97706; }
+  .badge.low { background: #16a34a; }
+  .badge.info { background: #64748b; }
+  .badge.unknown { background: #94a3b8; }
+
+  .empty { color: #94a3b8; font-style: italic; padding: 8px 0; }
+  .mitre { font-family: "DejaVu Sans Mono", monospace; font-size: 8.3pt; color: #334155; }
+  .disclaimer {
+    margin-top: 26px;
+    padding: 10px 12px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 4px;
+    font-size: 8pt;
+    color: #78350f;
+  }
+</style>
+</head>
+<body>
+
+<h1>Relatório de Segurança — Veryon</h1>
+<div class="subtitle">Período: {{ period_label }}</div>
+<div class="meta">Gerado em {{ generated_at }}</div>
+
+<h2>Resumo executivo</h2>
+<div class="cards">
+  <div class="card"><div class="n">{{ total_events }}</div><div class="l">Eventos ingeridos</div></div>
+  <div class="card"><div class="n">{{ total_alerts }}</div><div class="l">Alertas gerados</div></div>
+  <div class="card high"><div class="n">{{ alerts_by_level.get("high", 0) }}</div><div class="l">Alertas high</div></div>
+  <div class="card medium"><div class="n">{{ alerts_by_level.get("medium", 0) }}</div><div class="l">Alertas medium</div></div>
+</div>
+
+<h2>Alertas no período</h2>
+{% if alerts %}
+<table>
+  <tr><th>Quando</th><th>Nível</th><th>Alerta</th><th>MITRE</th><th>Host</th><th>IP origem</th></tr>
+  {% for a in alerts %}
+  <tr>
+    <td>{{ a.ts.strftime("%Y-%m-%d %H:%M") }}</td>
+    <td><span class="badge {{ a.level }}">{{ a.level }}</span></td>
+    <td>{{ a.title }}</td>
+    <td class="mitre">{{ a.mitre_technique or "—" }}</td>
+    <td>{{ a.source_host or "—" }}</td>
+    <td>{{ a.source_ip or "—" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="empty">Nenhum alerta no período selecionado.</div>
+{% endif %}
+
+<h2>Técnicas MITRE ATT&CK observadas</h2>
+{% if mitre_summary %}
+<table>
+  <tr><th>Técnica</th><th>Ocorrências</th></tr>
+  {% for m in mitre_summary %}
+  <tr><td class="mitre">{{ m.technique }}</td><td>{{ m.count }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="empty">Nenhuma técnica mapeada no período.</div>
+{% endif %}
+
+<h2>IPs de origem mais ativos</h2>
+{% if top_ips %}
+<table>
+  <tr><th>IP</th><th>Eventos</th><th>Reputação (AbuseIPDB)</th><th>VirusTotal maliciosos</th><th>País</th></tr>
+  {% for ip in top_ips %}
+  <tr>
+    <td>{{ ip.src_ip }}</td>
+    <td>{{ ip.count }}</td>
+    <td>{{ ip.abuseipdb_score if ip.abuseipdb_score is not none else "sem dados" }}</td>
+    <td>{{ ip.virustotal_malicious if ip.virustotal_malicious is not none else "sem dados" }}</td>
+    <td>{{ ip.abuseipdb_country or "—" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="empty">Nenhum IP de origem registrado no período.</div>
+{% endif %}
+
+<h2>Varredura de vulnerabilidades (Nuclei)</h2>
+{% if nuclei_findings %}
+<table>
+  <tr><th>Quando</th><th>Alvo</th><th>Severidade</th><th>Achado</th></tr>
+  {% for f in nuclei_findings %}
+  <tr>
+    <td>{{ f.ts.strftime("%Y-%m-%d %H:%M") }}</td>
+    <td>{{ f.host }}</td>
+    <td><span class="badge {{ f.severity or 'unknown' }}">{{ f.severity or "desconhecido" }}</span></td>
+    <td>{{ f.name }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="empty">Nenhum achado de scanner no período.</div>
+{% endif %}
+
+<div class="disclaimer">
+  Este relatório foi gerado por um laboratório SOC/SIEM de portfólio. Todo o
+  tráfego de ataque (honeypot, scanner) foi simulado localmente, sem exposição
+  a alvos reais na internet.
+</div>
+
+</body>
+</html>

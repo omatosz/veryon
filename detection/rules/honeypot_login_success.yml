@@ -1,0 +1,17 @@
+title: Login bem-sucedido no honeypot SSH/Telnet
+id: 479e0b79-d47e-485d-9e80-ea0b83df6185
+status: stable
+description: >
+  Um login foi aceito no honeypot Cowrie. Como o honeypot nao tem usuarios
+  legitimos, qualquer sucesso aqui e por definicao suspeito.
+logsource:
+  category: honeypot
+  service: cowrie
+detection:
+  selection:
+    event_type: cowrie.login.success
+  condition: selection
+level: high
+tags:
+  - attack.initial_access
+  - attack.t1110

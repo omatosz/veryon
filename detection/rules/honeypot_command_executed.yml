@@ -1,0 +1,17 @@
+title: Comando executado no honeypot
+id: 985c9844-0656-4a43-bcee-420f13eaf2d4
+status: stable
+description: >
+  Um atacante (real ou simulado) executou um comando de shell dentro do
+  honeypot Cowrie, apos ter feito login.
+logsource:
+  category: honeypot
+  service: cowrie
+detection:
+  selection:
+    event_type: cowrie.command.input
+  condition: selection
+level: medium
+tags:
+  - attack.execution
+  - attack.t1059
