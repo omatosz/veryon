@@ -251,6 +251,37 @@ docker compose exec -T db psql -U socadmin -d socsiem -c \
 > pode mascarar um motor que nunca encontrou nada por estar quebrado, não por
 > falta de eventos.
 
+## Resposta a incidentes: bloqueio de IP
+
+Detectar um ataque é metade do trabalho. A outra metade é decidir o que fazer
+com ele. Na tela de Alertas, ao lado do fluxo de triagem, tem um botão
+"Bloquear IP no honeypot": o analista revisa o alerta (de onde veio, qual
+técnica, qual comando rodou) e só depois decide bloquear. Não é automático de
+propósito, cada bloqueio é uma decisão registrada, com autor e horário.
+
+O bloqueio é de verdade: depois de clicado, o Cowrie para de aceitar conexão
+daquele IP nas portas 2222/2223, o analista consegue reverter a qualquer
+momento pela mesma tela.
+
+- `backend/app/api/alerts.py` (`POST /alerts/{id}/block`) e
+  `backend/app/api/blocklist.py` (`GET /blocklist`, `POST /blocklist/{ip}/unblock`)
+  gravam a decisão na tabela `blocked_ips`.
+- `blocklist-poller` lê essa tabela a cada poucos segundos e escreve a lista
+  atual num volume compartilhado.
+- `blocklist-enforcer` roda com `network_mode: service:cowrie` (compartilha o
+  namespace de rede do próprio Cowrie) e aplica as regras `DROP` no `INPUT`
+  desse namespace.
+
+**Pegadinha que caímos**: a primeira versão bloqueava pelo `DOCKER-USER` do
+host, igual ao egress-block da Fase 1. Não funcionou: toda conexão de teste
+chega via porta publicada em `localhost`, e esse tipo de tráfego passa por
+NAT hairpin, que no Linux não atravessa a chain `FORWARD`/`DOCKER-USER` (o
+contador de pacotes da regra ficava travado em zero mesmo com a conexão
+sendo aceita). A correção foi aplicar o bloqueio dentro do namespace de rede
+do próprio Cowrie em vez do host, aí não importa por qual caminho de NAT o
+pacote chegou, ele passa pelo `INPUT` do container de qualquer jeito antes
+de chegar no processo que está escutando a porta.
+
 ## Threat Intel (Fase 5)
 
 O serviço `threatintel` enriquece IPs vistos em `raw_events` com reputação de três
@@ -483,6 +514,7 @@ collector/      Coletor do Cowrie (honeypot → raw_events) (Fase 1)
 collectors/     Coletores de log de SO: Linux (container) e Windows (nativo) (Fase 2)
 scanner/        Nmap + Nuclei contra os serviços internos e o Juice Shop (Fase 3)
 detection/      Regras Sigma (validadas via pysigma) + motor de avaliação próprio (Fase 4)
+enforcement/    Bloqueio de IP no honeypot pós-triagem do analista
 threatintel/    Enriquecimento de IP via AbuseIPDB/VirusTotal/OTX (Fase 5)
 reports/        Geração de relatório SOC em HTML/PDF (Fase 7)
 frontend/       Dashboard web (React/Vite): login, alertas, eventos, threat intel (Fase 8)

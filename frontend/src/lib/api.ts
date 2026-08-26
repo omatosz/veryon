@@ -116,6 +116,31 @@ export function updateAlertStatus(id: number, status: string) {
   })
 }
 
+// --- Blocklist ---
+
+export interface ApiBlockedIP {
+  id: number
+  ip: string
+  alert_id: number | null
+  reason: string | null
+  blocked_by: string
+  blocked_at: string
+  unblocked_at: string | null
+  unblocked_by: string | null
+}
+
+export function listBlocklist() {
+  return request<ApiBlockedIP[]>('/blocklist')
+}
+
+export function blockAlertIp(alertId: number) {
+  return request<ApiBlockedIP>(`/alerts/${alertId}/block`, { method: 'POST' })
+}
+
+export function unblockIp(ip: string) {
+  return request<ApiBlockedIP>(`/blocklist/${encodeURIComponent(ip)}/unblock`, { method: 'POST' })
+}
+
 // --- Enrichment ---
 
 export interface ApiEnrichment {

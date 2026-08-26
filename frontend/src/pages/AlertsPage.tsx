@@ -1,12 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Radar, ShieldAlert, ShieldCheck, X } from 'lucide-react'
+import { Ban, Loader2, Radar, ShieldAlert, ShieldCheck, X } from 'lucide-react'
 
 import { AppShell } from '@/components/layout/AppShell'
 import { FilterPill } from '@/components/ui/filter-pill'
 import { ErrorState, LoadingState } from '@/components/ui/async-state'
 import { StatPill } from '@/components/ui/stat-pill'
 import { cn } from '@/lib/utils'
-import { getEnrichment, listAlerts, updateAlertStatus, type ApiAlert, type ApiEnrichment } from '@/lib/api'
+import {
+  blockAlertIp,
+  getEnrichment,
+  listAlerts,
+  listBlocklist,
+  unblockIp,
+  updateAlertStatus,
+  type ApiAlert,
+  type ApiBlockedIP,
+  type ApiEnrichment,
+} from '@/lib/api'
 import { countryFlag, formatTime } from '@/lib/format'
 import { severityMeta, sourceMeta, statusMeta, type AlertStatus, type EventSource, type Severity } from '@/lib/mock-data'
 
@@ -27,6 +37,21 @@ export function AlertsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [blocklist, setBlocklist] = useState<ApiBlockedIP[]>([])
+  const [blockActionError, setBlockActionError] = useState<string | null>(null)
+  const [blocking, setBlocking] = useState(false)
+
+  function refreshBlocklist() {
+    listBlocklist()
+      .then(setBlocklist)
+      .catch(() => {
+        // se a lista de bloqueio falhar, so nao mostra o estado (nao trava a tela de alertas)
+      })
+  }
+
+  useEffect(() => {
+    refreshBlocklist()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -100,6 +125,39 @@ export function AlertsPage() {
     }
   }
 
+  function blockedEntryFor(ip: string | null): ApiBlockedIP | null {
+    if (!ip) return null
+    return blocklist.find((b) => b.ip === ip) ?? null
+  }
+
+  async function handleBlock() {
+    if (selectedId === null || blocking) return
+    setBlocking(true)
+    setBlockActionError(null)
+    try {
+      await blockAlertIp(selectedId)
+      refreshBlocklist()
+    } catch (err) {
+      setBlockActionError(err instanceof Error ? err.message : 'Não foi possível bloquear o IP')
+    } finally {
+      setBlocking(false)
+    }
+  }
+
+  async function handleUnblock(ip: string) {
+    if (blocking) return
+    setBlocking(true)
+    setBlockActionError(null)
+    try {
+      await unblockIp(ip)
+      refreshBlocklist()
+    } catch (err) {
+      setBlockActionError(err instanceof Error ? err.message : 'Não foi possível desbloquear o IP')
+    } finally {
+      setBlocking(false)
+    }
+  }
+
   return (
     <AppShell title="Alertas">
       <div className="flex shrink-0 flex-wrap gap-3 px-4 pt-5 sm:px-8">
@@ -168,6 +226,7 @@ export function AlertsPage() {
                 const st = statusMeta[a.status as AlertStatus]
                 const src = alertSource(a)
                 const flag = a.source_ip ? countryFlag(ipInfo[a.source_ip]?.abuseipdb_country) : null
+                const isBlocked = blockedEntryFor(a.source_ip) !== null
                 return (
                   <div
                     key={a.id}
@@ -190,6 +249,7 @@ export function AlertsPage() {
                     <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
                       {flag && <span className="leading-none">{flag}</span>}
                       <span className="truncate">{a.source_ip ?? '—'}</span>
+                      {isBlocked && <Ban className="h-3 w-3 shrink-0 text-destructive" />}
                     </span>
                     <span className={`flex items-center gap-1.5 text-[11px] ${st?.color ?? 'text-muted-foreground'}`}>
                       <span className={cn('h-1.5 w-1.5 rounded-full', st ? st.color.replace('text-', 'bg-') : 'bg-muted-foreground')} />
@@ -267,6 +327,49 @@ export function AlertsPage() {
                     Fechado
                   </StatusButton>
                 </div>
+              </div>
+
+              <div>
+                <div className="mb-2 text-[11.5px] text-muted-foreground">Resposta</div>
+                {(() => {
+                  const entry = blockedEntryFor(selected.source_ip)
+                  if (entry) {
+                    return (
+                      <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/[0.07] p-3.5">
+                        <div className="flex items-center gap-2 text-[12.5px] text-destructive">
+                          <Ban className="h-3.5 w-3.5 shrink-0" />
+                          IP bloqueado no honeypot por {entry.blocked_by}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={blocking}
+                          onClick={() => handleUnblock(entry.ip)}
+                          className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium text-foreground transition-opacity hover:opacity-85 disabled:opacity-50"
+                        >
+                          {blocking && <Loader2 className="h-3 w-3 animate-spin" />}
+                          Desbloquear
+                        </button>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        disabled={!selected.source_ip || blocking}
+                        onClick={handleBlock}
+                        className="flex h-9 items-center justify-center gap-1.5 rounded-md border border-destructive/40 text-xs font-medium text-destructive transition-opacity hover:opacity-85 disabled:opacity-40"
+                      >
+                        {blocking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}
+                        Bloquear IP no honeypot
+                      </button>
+                      {!selected.source_ip && (
+                        <span className="text-[11px] text-muted-foreground">Este alerta não tem IP de origem pra bloquear.</span>
+                      )}
+                    </div>
+                  )
+                })()}
+                {blockActionError && <div className="mt-2 text-[11px] text-destructive">{blockActionError}</div>}
               </div>
 
               <div>

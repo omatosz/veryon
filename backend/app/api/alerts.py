@@ -5,9 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.db.models import Alert
+from app.db.models import Alert, BlockedIP
 from app.db.session import get_db
-from app.schemas import AlertOut, AlertStatusUpdate
+from app.schemas import AlertOut, AlertStatusUpdate, BlockedIPOut
 
 router = APIRouter(prefix="/alerts", tags=["alerts"], dependencies=[Depends(get_current_user)])
 
@@ -61,3 +61,34 @@ async def update_alert_status(alert_id: int, body: AlertStatusUpdate, db: AsyncS
     await db.commit()
     await db.refresh(alert)
     return alert
+
+
+@router.post("/{alert_id}/block", response_model=BlockedIPOut)
+async def block_alert_ip(
+    alert_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(get_current_user),
+):
+    result = await db.execute(select(Alert).where(Alert.id == alert_id))
+    alert = result.scalars().first()
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alerta nao encontrado")
+    if not alert.source_ip:
+        raise HTTPException(status_code=422, detail="Alerta nao tem IP de origem pra bloquear")
+
+    existing = await db.execute(
+        select(BlockedIP).where(BlockedIP.ip == alert.source_ip, BlockedIP.unblocked_at.is_(None))
+    )
+    if existing.scalars().first() is not None:
+        raise HTTPException(status_code=409, detail="Esse IP ja esta bloqueado")
+
+    blocked = BlockedIP(
+        ip=alert.source_ip,
+        alert_id=alert.id,
+        reason=alert.title,
+        blocked_by=current_user,
+    )
+    db.add(blocked)
+    await db.commit()
+    await db.refresh(blocked)
+    return blocked

@@ -144,6 +144,33 @@ services:
     networks:
       - core
 
+  blocklist-poller:
+    build: ./enforcement
+    command: ["./poll-db.sh"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    volumes:
+      - blocklist_sync:/shared
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - core
+
+  blocklist-enforcer:
+    build: ./enforcement
+    command: ["./enforce-netns.sh"]
+    restart: unless-stopped
+    network_mode: "service:cowrie"
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - blocklist_sync:/shared
+    depends_on:
+      - cowrie
+      - blocklist-poller
+
   reports:
     build: ./reports
     profiles: ["tools"]
@@ -174,3 +201,4 @@ networks:
 volumes:
   db_data:
   cowrie_var:
+  blocklist_sync:

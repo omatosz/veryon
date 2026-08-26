@@ -57,6 +57,19 @@ class EnrichmentOut(BaseModel):
     otx_pulse_count: int | None
 
 
+class BlockedIPOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ip: str
+    alert_id: int | None
+    reason: str | None
+    blocked_by: str
+    blocked_at: datetime
+    unblocked_at: datetime | None
+    unblocked_by: str | None
+
+
 class SummaryOut(BaseModel):
     total_events: int
     total_alerts: int

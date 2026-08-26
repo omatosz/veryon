@@ -60,3 +60,16 @@ class User(Base):
     username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BlockedIP(Base):
+    __tablename__ = "blocked_ips"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ip: Mapped[str] = mapped_column(String, nullable=False)
+    alert_id: Mapped[int | None] = mapped_column(BigInteger)
+    reason: Mapped[str | None] = mapped_column(String)
+    blocked_by: Mapped[str] = mapped_column(String, nullable=False)
+    blocked_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    unblocked_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))
+    unblocked_by: Mapped[str | None] = mapped_column(String)

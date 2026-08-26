@@ -6,7 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 
-from app.api import alerts, auth, enrichment, events, stats
+from app.api import alerts, auth, blocklist, enrichment, events, stats
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.seed import seed_admin_user
@@ -33,6 +33,7 @@ app.include_router(events.router)
 app.include_router(alerts.router)
 app.include_router(enrichment.router)
 app.include_router(stats.router)
+app.include_router(blocklist.router)
 
 
 @app.on_event("startup")
