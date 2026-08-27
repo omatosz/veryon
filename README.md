@@ -8,6 +8,9 @@ dashboard pra acompanhar tudo isso, com os dados persistidos em PostgreSQL/Times
 É um projeto de portfólio. Todo o tráfego de ataque é simulado localmente, não tem
 honeypot exposto pra internet pública.
 
+**[Ver a landing page do projeto](https://omatosz.github.io/veryon/)**, com a proposta,
+o pipeline explicado e onde ele se aplica.
+
 ## O que é o Veryon, e por que ele existe
 
 **SOC** (Security Operations Center) é o nome da "sala de controle" que times de
@@ -518,4 +521,5 @@ enforcement/    Bloqueio de IP no honeypot pós-triagem do analista
 threatintel/    Enriquecimento de IP via AbuseIPDB/VirusTotal/OTX (Fase 5)
 reports/        Geração de relatório SOC em HTML/PDF (Fase 7)
 frontend/       Dashboard web (React/Vite): login, alertas, eventos, threat intel (Fase 8)
+landing/        Landing page de portfólio (React/Vite), publicada via GitHub Pages
 ```

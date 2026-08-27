@@ -1,0 +1,119 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: 'Space Grotesk', sans-serif;
+    --font-sans: 'IBM Plex Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+    --background: #14131a;
+    --foreground: #ededf2;
+    --card: #23212c;
+    --card-foreground: #ededf2;
+    --popover: #23212c;
+    --popover-foreground: #ededf2;
+    --primary: #a78bfa;
+    --primary-foreground: #17111f;
+    --secondary: #36255c;
+    --secondary-foreground: #ededf2;
+    --muted: #23212c;
+    --muted-foreground: #a9a3bb;
+    --accent: #36255c;
+    --accent-foreground: #ededf2;
+    --destructive: #ef4444;
+    --border: oklch(1 0 0 / 9%);
+    --input: oklch(1 0 0 / 12%);
+    --ring: #a78bfa;
+    --radius: 0.75rem;
+
+    --cosmic: #23212c;
+    --violet: #36255c;
+    --ink-faint: #6f6885;
+    --glass-bg: rgba(54, 37, 92, 0.28);
+    --glass-bg-strong: rgba(54, 37, 92, 0.42);
+    --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+@keyframes drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(4%, 6%) scale(1.08); }
+}
+
+@keyframes drift-b {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-5%, -4%) scale(1.05); }
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+    html {
+        @apply font-sans;
+    }
+}
+
+@layer utilities {
+    .scrollbar-none {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    .scrollbar-none::-webkit-scrollbar {
+        display: none;
+    }
+    .glow-blob {
+        animation: drift-a 26s ease-in-out infinite;
+    }
+    .glow-blob-slow {
+        animation: drift-b 34s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .glow-blob,
+        .glow-blob-slow {
+            animation: none;
+        }
+    }
+    .glass {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+    }
+    .glass-strong {
+        background: var(--glass-bg-strong);
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(24px) saturate(150%);
+        -webkit-backdrop-filter: blur(24px) saturate(150%);
+    }
+}
