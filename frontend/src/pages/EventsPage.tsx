@@ -12,6 +12,8 @@ import { sourceMeta, type EventSource } from '@/lib/mock-data'
 
 type SourceFilter = EventSource | 'all'
 
+const POLL_INTERVAL_MS = 5000
+
 export function EventsPage() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [query, setQuery] = useState('')
@@ -23,22 +25,29 @@ export function EventsPage() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    listEvents({ source: sourceFilter === 'all' ? undefined : sourceFilter, limit: 200 })
-      .then((data) => {
-        if (cancelled) return
-        setEvents(data)
-        setError(null)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Erro ao carregar eventos')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+
+    function load(isInitial: boolean) {
+      if (isInitial) setLoading(true)
+      listEvents({ source: sourceFilter === 'all' ? undefined : sourceFilter, limit: 200 })
+        .then((data) => {
+          if (cancelled) return
+          setEvents(data)
+          setError(null)
+        })
+        .catch((err) => {
+          if (cancelled) return
+          setError(err instanceof Error ? err.message : 'Erro ao carregar eventos')
+        })
+        .finally(() => {
+          if (!cancelled && isInitial) setLoading(false)
+        })
+    }
+
+    load(true)
+    const id = setInterval(() => load(false), POLL_INTERVAL_MS)
     return () => {
       cancelled = true
+      clearInterval(id)
     }
   }, [sourceFilter])
 
@@ -86,7 +95,7 @@ export function EventsPage() {
   }, [events])
 
   return (
-    <AppShell title="Eventos" liveIndicator>
+    <AppShell title="Eventos">
       <div className="flex shrink-0 flex-wrap gap-3 px-4 pt-5 sm:px-8">
         <StatPill icon={Activity} tone="text-primary" bg="bg-primary/12" value={stats.total} label="eventos" hint="nesse filtro" />
         <StatPill icon={Server} tone="text-chart-4" bg="bg-chart-4/12" value={stats.sources} label="fontes ativas" hint="linux/windows/cowrie/scanner" />

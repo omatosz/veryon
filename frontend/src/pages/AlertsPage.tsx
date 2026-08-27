@@ -23,6 +23,8 @@ import { severityMeta, sourceMeta, statusMeta, type AlertStatus, type EventSourc
 type SeverityFilter = Severity | 'all'
 type StatusFilter = AlertStatus | 'all'
 
+const POLL_INTERVAL_MS = 5000
+
 function alertSource(a: ApiAlert): EventSource | null {
   const prefix = a.source_event_type?.split('.')[0]
   return prefix && prefix in sourceMeta ? (prefix as EventSource) : null
@@ -55,25 +57,33 @@ export function AlertsPage() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    listAlerts({
-      level: severityFilter === 'all' ? undefined : severityFilter,
-      status: statusFilter === 'all' ? undefined : statusFilter,
-    })
-      .then((data) => {
-        if (cancelled) return
-        setAlerts(data)
-        setError(null)
+
+    function load(isInitial: boolean) {
+      if (isInitial) setLoading(true)
+      listAlerts({
+        level: severityFilter === 'all' ? undefined : severityFilter,
+        status: statusFilter === 'all' ? undefined : statusFilter,
       })
-      .catch((err) => {
-        if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Erro ao carregar alertas')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+        .then((data) => {
+          if (cancelled) return
+          setAlerts(data)
+          setError(null)
+        })
+        .catch((err) => {
+          if (cancelled) return
+          setError(err instanceof Error ? err.message : 'Erro ao carregar alertas')
+        })
+        .finally(() => {
+          if (!cancelled && isInitial) setLoading(false)
+        })
+      if (!isInitial) refreshBlocklist()
+    }
+
+    load(true)
+    const id = setInterval(() => load(false), POLL_INTERVAL_MS)
     return () => {
       cancelled = true
+      clearInterval(id)
     }
   }, [severityFilter, statusFilter])
 

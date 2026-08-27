@@ -9,6 +9,7 @@ import { getEnrichment, getSummary, listAlerts, type ApiAlert, type ApiEnrichmen
 import { countryFlag, formatDay } from '@/lib/format'
 
 const TREND_DAYS = 14
+const POLL_INTERVAL_MS = 5000
 
 export function DashboardPage() {
   const [summary, setSummary] = useState<ApiSummary | null>(null)
@@ -19,23 +20,30 @@ export function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    Promise.all([getSummary(), listAlerts({ limit: 500 })])
-      .then(([s, a]) => {
-        if (cancelled) return
-        setSummary(s)
-        setAlerts(a)
-        setError(null)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Erro ao carregar dados')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+
+    function load(isInitial: boolean) {
+      if (isInitial) setLoading(true)
+      Promise.all([getSummary(), listAlerts({ limit: 500 })])
+        .then(([s, a]) => {
+          if (cancelled) return
+          setSummary(s)
+          setAlerts(a)
+          setError(null)
+        })
+        .catch((err) => {
+          if (cancelled) return
+          setError(err instanceof Error ? err.message : 'Erro ao carregar dados')
+        })
+        .finally(() => {
+          if (!cancelled && isInitial) setLoading(false)
+        })
+    }
+
+    load(true)
+    const id = setInterval(() => load(false), POLL_INTERVAL_MS)
     return () => {
       cancelled = true
+      clearInterval(id)
     }
   }, [])
 
@@ -63,7 +71,7 @@ export function DashboardPage() {
 
   if (loading) {
     return (
-      <AppShell title="Dashboard" liveIndicator>
+      <AppShell title="Dashboard">
         <LoadingState />
       </AppShell>
     )
@@ -71,7 +79,7 @@ export function DashboardPage() {
 
   if (error || !summary) {
     return (
-      <AppShell title="Dashboard" liveIndicator>
+      <AppShell title="Dashboard">
         <ErrorState message={error ?? 'Erro desconhecido'} />
       </AppShell>
     )
@@ -85,7 +93,7 @@ export function DashboardPage() {
   const maxSourceCount = Math.max(1, ...eventsBySource.map((s) => s.count))
 
   return (
-    <AppShell title="Dashboard" liveIndicator>
+    <AppShell title="Dashboard">
       <div className="grow overflow-y-auto px-4 pb-14 pt-6 sm:px-8">
         <div className="flex flex-wrap gap-3">
           <StatPill icon={ShieldAlert} tone="text-destructive" bg="bg-destructive/12" value={openAlertCount} label="alertas abertos" hint="no momento" />
