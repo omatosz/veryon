@@ -253,7 +253,8 @@ python -c "import secrets; print(secrets.token_hex(32))"
 As três primeiras têm conta gratuita em [AbuseIPDB](https://www.abuseipdb.com/),
 [VirusTotal](https://www.virustotal.com/) e [OTX](https://otx.alienvault.com/).
 
-O `.env` nunca vai pro controle de versão. Ele está no `.gitignore`.
+O `.env` está listado no `.gitignore`, fora do controle de versão. O `.env.example`,
+com os campos vazios, é o que fica versionado.
 
 ### 4. Subir tudo
 
@@ -345,7 +346,9 @@ ssh -p 2222 -o StrictHostKeyChecking=no root@localhost
 ```
 
 Digite qualquer senha (o honeypot aceita), e em poucos segundos um alerta **high**
-aparece na tela de Alertas.
+aparece na tela de Alertas. Use uma senha descartável: o honeypot grava em texto claro
+tudo que é digitado na sessão, então não vale a pena usar ali uma senha real de outro
+serviço.
 
 ---
 
@@ -418,18 +421,6 @@ landing/            Landing page, publicada via GitHub Pages
 infra/              Init do Postgres e regra de firewall
 docs/               Guias
 ```
-
----
-
-## Segurança do próprio repositório
-
-Nenhuma credencial, chave de API ou dado de acesso vai pro controle de versão. O
-`.env` fica no `.gitignore`; só o `.env.example`, com os campos vazios, é versionado.
-
-Uma ressalva que vale registrar: o Cowrie grava em texto claro tudo que é digitado
-numa sessão do honeypot, senha inclusive. Por isso os testes do honeypot pedem senha
-descartável, nunca uma senha real de outro serviço, que acabaria gravada no log do
-container.
 
 ---
 
