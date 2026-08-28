@@ -44,8 +44,9 @@ export function Hero() {
 
         <motion.p variants={item} className="max-w-xl text-lg leading-relaxed text-muted-foreground">
           <Balancer>
-            Veryon é um SOC completo construído do zero: honeypot recebendo ataque de verdade, detecção com regras
-            Sigma mapeadas ao MITRE ATT&amp;CK, threat intel e resposta a incidente em tempo real.
+            Veryon é um SOC completo construído do zero: honeypot recebendo ataque de verdade, análise de
+            vulnerabilidade e de comportamento de API, detecção com regras Sigma mapeadas ao MITRE ATT&amp;CK, e
+            prevenção de ameaça que age sozinha com trilhos de segurança.
           </Balancer>
         </motion.p>
 

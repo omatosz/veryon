@@ -24,8 +24,18 @@ const STAGES: Stage[] = [
   },
   {
     name: 'Detecção',
-    fact: '7 regras Sigma · MITRE ATT&CK',
+    fact: 'regras Sigma · MITRE ATT&CK',
     desc: 'Um motor próprio avalia regras no formato Sigma, o padrão da indústria pra detecção, mapeadas ao MITRE ATT&CK. Cobre força bruta, execução de comando, uso indevido de privilégio e mais.',
+  },
+  {
+    name: 'Vulnerabilidades',
+    fact: 'Nmap · Nuclei · ciclo de vida',
+    desc: 'Nmap e Nuclei varrem os serviços e o alvo vulnerável. Cada achado tem assinatura estável, então a mesma falha numa varredura seguinte atualiza em vez de duplicar. Se marcaram como corrigida e ela volta, reabre sozinha e o contador sobe. Fechar chamado sem consertar fica visível.',
+  },
+  {
+    name: 'Análise de API',
+    fact: '8 sinais · ingestão externa',
+    desc: 'O Veryon observa o próprio tráfego de API e também aceita log de gateway de fora, o que permite apontar ele pra API de um cliente. Oito sinais pontuados (injeção, varredura de rotas, acesso sequencial a objetos, API fantasma e mais) somam um score: acima de 70 vira alerta, acima de 90 vai pra prevenção.',
   },
   {
     name: 'Threat intel',
@@ -33,14 +43,19 @@ const STAGES: Stage[] = [
     desc: 'IPs suspeitos são cruzados com três fontes públicas de reputação, a mesma pergunta que um analista faria: esse IP já apareceu fazendo coisa ruim em outro lugar?',
   },
   {
+    name: 'Prevenção',
+    fact: '10 políticas · 7 trilhos de segurança',
+    desc: 'Políticas de fábrica decidem o que o sistema faz sozinho. Toda política nasce observando e mostra numa simulação o que faria antes de ligar. Sete trilhos ficam fora do controle da regra: allowlist ganha sempre, nunca bloqueia IP interno, teto de bloqueios por hora, e o desfazer que a política respeita em vez de reaplicar.',
+  },
+  {
     name: 'Dashboard',
-    fact: 'FastAPI + JWT',
-    desc: 'Uma API própria expõe tudo isso autenticado com JWT pra um dashboard real: fila de alertas com triagem, feed de eventos, consulta de reputação de IP.',
+    fact: 'FastAPI + JWT · React',
+    desc: 'Uma API própria expõe tudo autenticado com JWT pra um painel real: fila de triagem, vulnerabilidades com ciclo de vida, chamadores de API pontuados, fila crítica de prevenção, e um gráfico que gira pra revelar o mapa-múndi de origem dos IPs.',
   },
   {
     name: 'Resposta',
-    fact: 'bloqueio no honeypot',
-    desc: 'O analista revisa o alerta e decide bloquear o IP de origem. O Cowrie passa a rejeitar aquele IP de verdade, direto no namespace de rede do container, até alguém desbloquear.',
+    fact: 'bloqueio em dois atuadores',
+    desc: 'Bloquear um IP age em dois lugares ao mesmo tempo: iptables no namespace do honeypot e um middleware no backend que recusa a requisição antes de chegar na rota. Os dois leem a mesma condição no banco, com prazo e allowlist, até alguém desbloquear.',
   },
   {
     name: 'Relatório',

@@ -12,9 +12,9 @@ const CASES = [
   },
   {
     icon: Globe,
-    title: 'Aplicações web e sites',
-    desc: 'Todo site público recebe varredura automatizada o tempo inteiro: bot testando login, ferramenta procurando vulnerabilidade conhecida. O scanner do Veryon (Nmap + Nuclei) simula exatamente esse tipo de varredura contra um alvo propositalmente vulnerável.',
-    tags: ['T1595 varredura', 'T1110 credential stuffing'],
+    title: 'Aplicações web e APIs',
+    desc: 'Todo site ou API pública recebe atenção automatizada o tempo inteiro: bot testando login, ferramenta procurando vulnerabilidade conhecida, cliente suspeito enumerando rotas ou puxando objeto atrás de objeto. O scanner do Veryon (Nmap + Nuclei) rastreia a vulnerabilidade com ciclo de vida, e a análise de comportamento de API pontua quem age como atacante antes do estrago.',
+    tags: ['T1595 varredura', 'T1190 injeção', 'BOLA / IDOR'],
   },
 ]
 

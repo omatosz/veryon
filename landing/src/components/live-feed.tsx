@@ -15,8 +15,12 @@ const POOL: Omit<FeedLine, 'id'>[] = [
   { t: '12:06:02', tag: 'threatintel', msg: 'consulta 8.8.8.8 · reputação limpa' },
   { t: '12:07:15', tag: 'windows', msg: 'logon privilégio admin · T1078' },
   { t: '12:08:30', tag: 'scanner', msg: 'nuclei finding · severidade média · T1595' },
+  { t: '12:08:52', tag: 'api', msg: 'injeção detectada · 203.0.113.7 · score 92 · T1190' },
   { t: '12:09:02', tag: 'cowrie', msg: 'comando executado · whoami; id · T1059' },
+  { t: '12:09:20', tag: 'api', msg: 'acesso sequencial a objetos · /customers/{id}' },
   { t: '12:10:12', tag: 'enforcement', msg: 'ip bloqueado após triagem · 172.28.0.1' },
+  { t: '12:10:40', tag: 'prevention', msg: 'política api-inj · simulação · seria bloqueado' },
+  { t: '12:11:05', tag: 'prevention', msg: 'bloqueio automático · expira em 30min' },
 ]
 
 const MAX_LINES = 6
