@@ -1,16 +1,30 @@
 # Veryon
 
-Veryon é um SOC/SIEM que eu construí do zero: honeypot recebendo ataque de verdade,
-coleta de log de Windows e Linux, scanner de vulnerabilidade com ciclo de vida,
-análise de comportamento de API, motor de detecção com regras Sigma mapeadas pro
-MITRE ATT&CK, enriquecimento com threat intelligence, prevenção de ameaça com
-política automática, e um painel pra operar tudo isso.
+Veryon é um SOC/SIEM completo que eu construí do zero, e este README é o guia pra
+você rodar e usar ele na sua máquina, do clone ao primeiro alerta.
+
+Em uma frase: ele recebe ataque de verdade num honeypot, coleta log de Windows e
+Linux, varre vulnerabilidade com ciclo de vida, analisa comportamento de API, detecta
+com regras Sigma mapeadas pro MITRE ATT&CK, cruza IP com threat intelligence, previne
+ameaça com política automática, e põe tudo num painel pra operar.
 
 **[Ver a landing page](https://omatosz.github.io/veryon/)** com a proposta e o
 pipeline explicado.
 
-É um projeto de portfólio. Todo o tráfego de ataque é simulado localmente, não tem
-honeypot exposto pra internet pública.
+Todo o tráfego de ataque é simulado localmente. Não tem honeypot exposto pra internet
+pública, então roda tranquilo na sua máquina pra aprender ou testar.
+
+## Por onde começar
+
+Se você só quer ver funcionando, pule pra
+**[Como rodar na sua máquina](#como-rodar-na-sua-máquina)**: são cinco passos e, em
+poucos minutos, o painel está no ar. Com ele de pé, o
+**[primeiro tour pelo painel](#primeiro-tour-pelo-painel)** mostra o que cada tela
+faz, e **[simular ataques](#simular-ataques)** te dá o que digitar pra ver o pipeline
+reagir em tempo real.
+
+Se prefere entender o sistema antes de rodar, siga na ordem: as seções abaixo
+explicam cada parte e por que ela existe.
 
 ---
 
@@ -23,9 +37,9 @@ Management) é o tipo de software que torna essa sala possível: junta logs de f
 diferentes, decide quando alguma coisa é suspeita e mostra isso de um jeito que dá
 pra agir em cima.
 
-O Veryon é a minha versão desse software, montada do zero pra mostrar na prática, e
-não só explicar em teoria, que sei construir o pipeline inteiro que uma vaga de
-segurança/SOC cobra.
+O Veryon é a minha versão desse software, montada do zero. Em vez de ficar na teoria,
+ele roda o pipeline inteiro de um SOC de verdade, do primeiro pacote de um ataque até
+a resposta, e deixa você operar cada etapa pelo painel.
 
 A regra que guiou o projeto: **nenhum botão morto**. Se a tela mostra "Bloquear", o
 IP é bloqueado de verdade, em dois lugares diferentes da pilha. Se mostra "Desfazer",
