@@ -90,6 +90,10 @@ services:
       db:
         condition: service_healthy
     volumes:
+      # Esse coletor le o auth.log de um host Linux. Em Windows e macOS o
+      # arquivo nao existe, e o Docker cria um diretorio vazio no ponto de
+      # montagem. O coletor detecta isso, avisa uma vez e fica parado; o resto
+      # do Veryon nao depende dele.
       - /var/log/auth.log:/hostlogs/auth.log:ro
     networks:
       - core
@@ -102,9 +106,13 @@ services:
     networks:
       - target_net
 
+  # Deixou de ser job de uma tacada e virou servico que consome a fila
+  # scan_jobs, pro botao "Rodar varredura agora" na tela funcionar. O modo
+  # antigo continua valendo:
+  #   docker compose run --rm scanner --once
   scanner:
     build: ./scanner
-    profiles: ["tools"]
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       NMAP_TARGETS: "db:5432,redis:6379,backend:8000,juice-shop@host.docker.internal:3000"

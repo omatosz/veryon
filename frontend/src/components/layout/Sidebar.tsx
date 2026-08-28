@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, NavLink } from 'react-router-dom'
-import { Activity, FileText, LayoutGrid, LogOut, ShieldAlert, ShieldCheck, Telescope, X } from 'lucide-react'
+import { Activity, Bug, FileText, LayoutGrid, LogOut, Radar, ShieldAlert, ShieldCheck, Telescope, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { listAlerts } from '@/lib/api'
+import { getApiSummary, getPreventionSummary, getVulnSummary, listAlerts } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 
 interface SidebarProps {
@@ -13,6 +13,9 @@ interface SidebarProps {
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const [openAlertCount, setOpenAlertCount] = useState<number | null>(null)
+  const [openVulnCount, setOpenVulnCount] = useState<number | null>(null)
+  const [openApiCount, setOpenApiCount] = useState<number | null>(null)
+  const [queueCount, setQueueCount] = useState<number | null>(null)
   const { logout } = useAuth()
   const navigate = useNavigate()
 
@@ -24,6 +27,28 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       })
       .catch(() => {
         if (!cancelled) setOpenAlertCount(null)
+      })
+    // Contador do menu: some se a chamada falhar, em vez de travar a navegação.
+    getVulnSummary()
+      .then((s) => {
+        if (!cancelled) setOpenVulnCount(s.total_open)
+      })
+      .catch(() => {
+        if (!cancelled) setOpenVulnCount(null)
+      })
+    getApiSummary()
+      .then((s) => {
+        if (!cancelled) setOpenApiCount(s.open_findings)
+      })
+      .catch(() => {
+        if (!cancelled) setOpenApiCount(null)
+      })
+    getPreventionSummary()
+      .then((s) => {
+        if (!cancelled) setQueueCount(s.queue_size)
+      })
+      .catch(() => {
+        if (!cancelled) setQueueCount(null)
       })
     return () => {
       cancelled = true
@@ -38,6 +63,17 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         { to: '/alerts', label: 'Alertas', icon: ShieldAlert, badge: openAlertCount },
         { to: '/events', label: 'Eventos', icon: Activity },
       ],
+    },
+    {
+      label: 'Análise',
+      items: [
+        { to: '/vulnerabilities', label: 'Vulnerabilidades', icon: Bug, badge: openVulnCount },
+        { to: '/api-analysis', label: 'Análise de API', icon: Radar, badge: openApiCount },
+      ],
+    },
+    {
+      label: 'Resposta',
+      items: [{ to: '/prevention', label: 'Prevenção', icon: ShieldCheck, badge: queueCount }],
     },
     { label: 'Inteligência', items: [{ to: '/threat-intel', label: 'Threat Intel', icon: Telescope }] },
     { label: 'Operação', items: [{ to: '/reports', label: 'Relatórios', icon: FileText }] },
@@ -62,7 +98,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       >
         <div className="flex items-center justify-between gap-2.5 px-2 pb-5 pt-1.5">
           <div className="flex items-center gap-2.5">
-            <ShieldCheck className="h-[26px] w-[26px] text-primary" strokeWidth={2.2} />
+            <img src="/brand/veryon-mark-128.png" alt="" className="h-8 w-8 shrink-0" draggable={false} />
             <span className="font-heading text-[15px] font-semibold tracking-tight text-foreground">Veryon</span>
           </div>
           <button

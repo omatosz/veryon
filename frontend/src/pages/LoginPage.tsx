@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { Eye, EyeOff, Loader2, ShieldCheck, X } from 'lucide-react'
+import { Eye, EyeOff, Loader2, X } from 'lucide-react'
 
 import { BeamsBackground } from '@/components/ui/beams-background'
 import { Input } from '@/components/ui/input'
@@ -57,7 +57,7 @@ export function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <ShieldCheck className="h-10 w-10 text-primary" strokeWidth={1.75} />
+          <img src="/brand/veryon-mark-256.png" alt="" className="h-24 w-24" draggable={false} />
           <div className="text-center">
             <div className="font-heading text-[22px] font-semibold tracking-tight text-foreground">
               Veryon

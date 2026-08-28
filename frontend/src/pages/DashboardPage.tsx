@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, Lock, Radar, ShieldAlert } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import { AppShell } from '@/components/layout/AppShell'
+import { AlertsChartCard } from '@/components/dashboard/AlertsChartCard'
 import { ErrorState, LoadingState } from '@/components/ui/async-state'
 import { StatPill } from '@/components/ui/stat-pill'
 import { getEnrichment, getSummary, listAlerts, type ApiAlert, type ApiEnrichment, type ApiSummary } from '@/lib/api'
-import { countryFlag, formatDay } from '@/lib/format'
+import { countryFlag } from '@/lib/format'
 
-const TREND_DAYS = 14
 const POLL_INTERVAL_MS = 5000
 
 export function DashboardPage() {
@@ -65,7 +65,6 @@ export function DashboardPage() {
     }
   }, [summary])
 
-  const trend = useMemo(() => buildTrend(alerts), [alerts])
   const mitreBreakdown = useMemo(() => buildMitreBreakdown(alerts), [alerts])
   const topHosts = useMemo(() => buildTopHosts(alerts), [alerts])
 
@@ -102,34 +101,7 @@ export function DashboardPage() {
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[1.9fr_1fr]">
-          <div className="rounded-xl border border-border bg-card p-5.5">
-            <div className="mb-3.5 flex items-center justify-between">
-              <h2 className="font-heading text-[14.5px] font-semibold text-foreground">Alertas por dia</h2>
-              <div className="flex items-center gap-3.5 text-[10.5px]">
-                <Legend color="bg-destructive" label="high" />
-                <Legend color="bg-warning" label="medium" />
-                <Legend color="bg-success" label="low" />
-              </div>
-            </div>
-
-            {alerts.length === 0 ? (
-              <EmptyHint text="Nenhum alerta gerado ainda." />
-            ) : (
-              <div style={{ height: 240 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fill: '#8E8EA3', fontSize: 10.5 }} axisLine={{ stroke: 'rgba(255,255,255,0.08)' }} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fill: '#8E8EA3', fontSize: 10.5 }} axisLine={false} tickLine={false} width={26} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.12)' }} />
-                    <Line type="monotone" dataKey="high" stroke="var(--destructive)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="high" />
-                    <Line type="monotone" dataKey="medium" stroke="var(--warning)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="medium" />
-                    <Line type="monotone" dataKey="low" stroke="var(--success)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="low" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
+          <AlertsChartCard />
 
           <div className="rounded-xl border border-border bg-card p-5.5">
             <h2 className="mb-3.5 font-heading text-[14.5px] font-semibold text-foreground">Principais atacantes</h2>
@@ -230,25 +202,6 @@ export function DashboardPage() {
   )
 }
 
-function buildTrend(alerts: ApiAlert[]) {
-  const buckets = new Map<string, { high: number; medium: number; low: number }>()
-  const today = new Date()
-  for (let i = TREND_DAYS - 1; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(d.getDate() - i)
-    buckets.set(d.toISOString().slice(0, 10), { high: 0, medium: 0, low: 0 })
-  }
-  for (const a of alerts) {
-    const key = a.ts.slice(0, 10)
-    const bucket = buckets.get(key)
-    if (!bucket) continue
-    if (a.level === 'high') bucket.high++
-    else if (a.level === 'medium') bucket.medium++
-    else if (a.level === 'low') bucket.low++
-  }
-  return [...buckets.entries()].map(([day, counts]) => ({ label: formatDay(day), ...counts }))
-}
-
 function buildMitreBreakdown(alerts: ApiAlert[]) {
   const counts = new Map<string, number>()
   for (const a of alerts) {
@@ -286,15 +239,6 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
         </div>
       ))}
     </div>
-  )
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5 text-muted-foreground">
-      <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
-      {label}
-    </span>
   )
 }
 

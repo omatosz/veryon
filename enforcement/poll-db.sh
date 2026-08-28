@@ -9,9 +9,14 @@ set -euo pipefail
 POLL_SECONDS="${POLL_SECONDS:-5}"
 OUT="/shared/blocked_ips.txt"
 
+# A condicao aqui e a mesma de app/core/blocklist.py:active_blocks(). Se as
+# duas divergirem, um bloqueio some da API e continua preso no iptables, ou o
+# contrario. Mexeu numa, mexe na outra.
 while true; do
   psql "$DATABASE_URL" -t -A -c \
-    "SELECT DISTINCT ip FROM blocked_ips WHERE unblocked_at IS NULL" \
+    "SELECT DISTINCT ip FROM blocked_ips
+      WHERE unblocked_at IS NULL
+        AND (expires_at IS NULL OR expires_at > now())" \
     > "${OUT}.tmp" 2>/dev/null && mv "${OUT}.tmp" "$OUT"
   sleep "$POLL_SECONDS"
 done

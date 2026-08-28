@@ -77,10 +77,25 @@ def parse_line(line):
 
 
 def follow(path):
-    while not os.path.exists(path):
-        print(f"aguardando arquivo de log em {path}...", flush=True)
-        time.sleep(2)
+    # os.path.isfile, nao os.path.exists. Quando o host nao tem /var/log/auth.log,
+    # o Docker cria um DIRETORIO vazio no ponto de montagem, e diretorio existe.
+    # Com o teste de existencia, o coletor passava daqui e morria no open() com
+    # IsADirectoryError, entrando em laco de reinicio. Acontece em toda maquina
+    # Windows ou macOS, onde esse arquivo simplesmente nao existe.
+    avisou = False
+    while not os.path.isfile(path):
+        if not avisou:
+            print(
+                f"{path} nao e um arquivo de log. Esse coletor le o auth.log de um "
+                "host Linux; em Windows ou macOS esse arquivo nao existe e o servico "
+                "fica parado aqui, sem coletar nada. O resto do Veryon funciona "
+                "normalmente. Aguardando o arquivo aparecer...",
+                flush=True,
+            )
+            avisou = True
+        time.sleep(10)
 
+    print(f"arquivo encontrado, seguindo {path}", flush=True)
     with open(path, "r") as f:
         f.seek(0, os.SEEK_END)
         while True:

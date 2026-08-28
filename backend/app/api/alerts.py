@@ -1,10 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.blocklist import guard_target
 from app.api.deps import get_current_user
+from app.core import blocklist as blocklist_cache
 from app.db.models import Alert, BlockedIP
 from app.db.session import get_db
 from app.schemas import AlertOut, AlertStatusUpdate, BlockedIPOut
@@ -66,6 +68,8 @@ async def update_alert_status(alert_id: int, body: AlertStatusUpdate, db: AsyncS
 @router.post("/{alert_id}/block", response_model=BlockedIPOut)
 async def block_alert_ip(
     alert_id: int,
+    request: Request,
+    ttl_minutes: int | None = Query(None, ge=1, le=60 * 24 * 30),
     db: AsyncSession = Depends(get_db),
     current_user: str = Depends(get_current_user),
 ):
@@ -76,19 +80,24 @@ async def block_alert_ip(
     if not alert.source_ip:
         raise HTTPException(status_code=422, detail="Alerta nao tem IP de origem pra bloquear")
 
-    existing = await db.execute(
-        select(BlockedIP).where(BlockedIP.ip == alert.source_ip, BlockedIP.unblocked_at.is_(None))
-    )
-    if existing.scalars().first() is not None:
-        raise HTTPException(status_code=409, detail="Esse IP ja esta bloqueado")
+    # Mesmas travas do bloqueio manual: allowlist, IP proprio e duplicata.
+    # Uma funcao so pros dois caminhos, senao um dos dois acaba mais fraco.
+    normalized = await guard_target(request, db, alert.source_ip)
+
+    expires_at = None
+    if ttl_minutes is not None:
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
 
     blocked = BlockedIP(
-        ip=alert.source_ip,
+        ip=normalized,
         alert_id=alert.id,
         reason=alert.title,
         blocked_by=current_user,
+        expires_at=expires_at,
+        source="manual",
     )
     db.add(blocked)
     await db.commit()
     await db.refresh(blocked)
+    await blocklist_cache.refresh()
     return blocked

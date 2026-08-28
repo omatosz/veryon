@@ -9,6 +9,6 @@ COPY --from=nuclei /usr/local/bin/nuclei /usr/local/bin/nuclei
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY run_scan.py .
+COPY run_scan.py normalize.py ./
 
 ENTRYPOINT ["python", "run_scan.py"]

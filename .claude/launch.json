@@ -4,14 +4,9 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
-      "port": 5173
-    },
-    {
-      "name": "landing",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "landing", "run", "dev"],
-      "port": 5174
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173,
+      "cwd": "frontend"
     }
   ]
 }

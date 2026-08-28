@@ -7,6 +7,9 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { AlertsPage } from '@/pages/AlertsPage'
 import { EventsPage } from '@/pages/EventsPage'
 import { ThreatIntelPage } from '@/pages/ThreatIntelPage'
+import { VulnerabilitiesPage } from '@/pages/VulnerabilitiesPage'
+import { ApiAnalysisPage } from '@/pages/ApiAnalysisPage'
+import { PreventionPage } from '@/pages/PreventionPage'
 import { ReportsPage } from '@/pages/ReportsPage'
 
 function App() {
@@ -18,6 +21,9 @@ function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/events" element={<EventsPage />} />
+          <Route path="/vulnerabilities" element={<VulnerabilitiesPage />} />
+          <Route path="/api-analysis" element={<ApiAnalysisPage />} />
+          <Route path="/prevention" element={<PreventionPage />} />
           <Route path="/threat-intel" element={<ThreatIntelPage />} />
           <Route path="/reports" element={<ReportsPage />} />
         </Route>

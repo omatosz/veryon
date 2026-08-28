@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Bell, Menu, Search } from 'lucide-react'
 
 import { Sidebar } from '@/components/layout/Sidebar'
+import { ShaderBackground } from '@/components/ui/shader-background'
 
 interface AppShellProps {
   title: string
@@ -12,10 +13,21 @@ export function AppShell({ title, children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="relative flex h-screen w-full overflow-hidden bg-background">
+      {/* O fundo fica atrás de tudo e fora do fluxo, sem receber clique.
+          O véu existe pra segurar contraste, mas fica em 78% e não mais que
+          isso: os cartões são opacos, então a onda só aparece nos vãos entre
+          eles. Véu mais fechado deixaria a animação invisível e o efeito não
+          teria razão de existir. Quem pede menos movimento no sistema recebe
+          um quadro parado, isso o próprio componente resolve. */}
+      <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+        <ShaderBackground className="h-full w-full" />
+        <div className="absolute inset-0 bg-background/78" />
+      </div>
+
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex min-w-0 grow flex-col">
+      <div className="relative z-10 flex min-w-0 grow flex-col">
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4 sm:px-8">
           <div className="flex items-center gap-3">
             <button

@@ -1,15 +1,18 @@
 # Veryon
 
-Veryon é um laboratório de SOC/SIEM construído do zero: honeypot, coleta de logs de
-Windows e Linux, scanner de vulnerabilidades, motor de detecção com regras Sigma
-mapeadas pro MITRE ATT&CK, enriquecimento com threat intelligence, API própria e um
-dashboard pra acompanhar tudo isso, com os dados persistidos em PostgreSQL/TimescaleDB.
+Veryon é um SOC/SIEM que eu construí do zero: honeypot recebendo ataque de verdade,
+coleta de log de Windows e Linux, scanner de vulnerabilidade com ciclo de vida,
+análise de comportamento de API, motor de detecção com regras Sigma mapeadas pro
+MITRE ATT&CK, enriquecimento com threat intelligence, prevenção de ameaça com
+política automática, e um painel pra operar tudo isso.
+
+**[Ver a landing page](https://omatosz.github.io/veryon/)** com a proposta e o
+pipeline explicado.
 
 É um projeto de portfólio. Todo o tráfego de ataque é simulado localmente, não tem
 honeypot exposto pra internet pública.
 
-**[Ver a landing page do projeto](https://omatosz.github.io/veryon/)**, com a proposta,
-o pipeline explicado e onde ele se aplica.
+---
 
 ## O que é o Veryon, e por que ele existe
 
@@ -24,480 +27,271 @@ O Veryon é a minha versão desse software, montada do zero pra mostrar na prát
 não só explicar em teoria, que sei construir o pipeline inteiro que uma vaga de
 segurança/SOC cobra.
 
-Tem um honeypot de verdade recebendo ataque (um sistema-isca que só existe pra ser
-atacado) e uma aplicação web propositalmente vulnerável do lado. Os logs do Windows
-e do Linux são coletados do mesmo jeito que um agente instalado num servidor de
-produção faria. Em cima disso roda um motor de detecção usando Sigma, o formato de
-regra mais usado do mercado, mapeado pro MITRE ATT&CK, o "dicionário" padrão da
-indústria pra descrever técnica de ataque (T1110, por exemplo, é sempre força bruta,
-não importa a ferramenta).
+A regra que guiou o projeto: **nenhum botão morto**. Se a tela mostra "Bloquear", o
+IP é bloqueado de verdade, em dois lugares diferentes da pilha. Se mostra "Desfazer",
+o bloqueio sai e a política respeita a decisão. Se mostra um score, dá pra clicar e
+ver as requisições que geraram aquele número.
 
-IPs suspeitos são enriquecidos consultando serviços públicos de reputação
-(AbuseIPDB, VirusTotal, OTX), a mesma pergunta que um analista faria na prática:
-esse IP já foi visto fazendo coisa ruim em outro lugar? Tudo isso aparece num
-dashboard web com login, feed de eventos, fila de alertas com triagem (abrir,
-reconhecer, fechar) e consulta de reputação de IP. E no fim sai um relatório de
-segurança em PDF/HTML, porque em SOC de verdade o trabalho não acaba no alerta:
-alguém sempre vai precisar de um resumo do que aconteceu.
+---
 
-Cada peça (ingestão, detecção, threat intel, API, frontend, relatório) roda como
-serviço separado, do jeito que existiria numa empresa de verdade, não um script
-gigante fazendo tudo.
+## O que ele faz
+
+### Recebe ataque de verdade
+
+Um honeypot Cowrie (sistema-isca que só existe pra ser atacado) roda em rede
+isolada, com SSH e Telnet abertos. Do lado, um Juice Shop, aplicação web
+propositalmente vulnerável. Tudo que acontece neles vira evento no banco.
+
+### Coleta log como um agente de produção
+
+Coletores leves em Python leem o Event Log do Windows e o `auth.log` do Linux, do
+mesmo jeito que um agente instalado num servidor faria, e mandam pro pipeline.
+
+### Detecta com o padrão do mercado
+
+O motor de detecção usa **Sigma**, o formato de regra mais usado da indústria,
+validado com `pysigma`. Cada regra é mapeada pro **MITRE ATT&CK**, o dicionário
+padrão pra descrever técnica de ataque: T1110 é sempre força bruta, não importa a
+ferramenta que o atacante usou.
+
+### Rastreia vulnerabilidade com ciclo de vida
+
+Nmap e Nuclei varrem os serviços internos e o alvo vulnerável. O resultado não é uma
+foto solta de cada varredura: cada achado tem assinatura estável, então a mesma
+vulnerabilidade numa varredura seguinte **atualiza** em vez de virar linha nova. Se
+alguém marcou como corrigida e ela volta, ela reabre sozinha e o contador
+`reopened_count` sobe. Número alto ali quer dizer que estão fechando chamado sem
+consertar.
+
+Aceitar o risco exige justificativa escrita e data de revisão. A API recusa sem as
+duas, porque risco aceito sem prazo é o jeito mais fácil de nunca corrigir nada.
+
+### Analisa comportamento de API
+
+O Veryon observa o próprio tráfego de API e também aceita log de acesso de fora, pelo
+endpoint `POST /ingest/api-logs` com chave própria. Isso é o que permite apontar ele
+pra API de um cliente.
+
+Sobre esse tráfego roda um motor de oito sinais, cada um com peso:
+
+| Sinal | Peso | O que é |
+|---|---|---|
+| Tentativa de injeção | 40 | SQLi, XSS, traversal, comando, template, NoSQL |
+| Rajada de falha de autenticação | 30 | Muitas tentativas de login falhando da mesma origem |
+| Varredura de rotas | 25 | Muitas rotas distintas, a maioria respondendo 404 |
+| API fantasma respondendo | 25 | Rota que responde sem estar no inventário declarado |
+| Acesso sequencial a objetos | 20 | `/users/1`, `/users/2`, `/users/3`… (BOLA/IDOR) |
+| Volume de resposta fora do padrão | 20 | Resposta muito maior que o normal daquela rota |
+| Acesso a endpoint sensível | 15 | Rota de credencial, usuário, exportação, administração |
+| Método HTTP fora do esperado | 10 | TRACE, CONNECT, ou método que a rota não suporta |
+
+A soma tem teto em 100. Acima de 70 vira alerta automático na tela de Alertas, com
+técnica MITRE. Acima de 90 é caso pra prevenção tratar.
+
+Dois detalhes que só aparecem quando se olha o dado real:
+
+- A busca por injeção roda **na forma decodificada** também. Atacante que sabe o
+  mínimo manda `%27%20OR`, e o padrão cru nunca casaria com isso.
+- O sinal de volume compara contra a **mediana** das outras respostas da mesma rota,
+  não contra a média. Média absorve o próprio pico: doze respostas de 1 KB com uma de
+  900 KB no meio dão média de 76 KB, e aí o pico deixa de parecer pico.
+
+### Previne com política, sem virar risco
+
+Dez políticas de fábrica decidem o que o sistema pode fazer sozinho. Elas não são
+uma linguagem de regra genérica: cada uma aponta pra um avaliador conhecido no
+código, com parâmetros ajustáveis. Menos flexível de propósito, porque regra
+genérica é o caminho mais curto pra alguém escrever sem querer algo que bloqueia o
+parque inteiro.
+
+**Toda política nasce em modo observação.** Nesse modo ela reconhece os casos e
+registra o que teria feito, sem tocar em nada. Antes de ligar, a simulação mostra os
+alvos de agora e quais seriam segurados.
+
+Sete trilhos de segurança ficam **fora** do controle da política:
+
+1. Política nasce observando; nenhuma age antes de alguém ligar na mão.
+2. Allowlist ganha sempre, mesmo que a regra case perfeitamente.
+3. Nunca bloqueia endereço privado, de loopback ou reservado.
+4. Bloqueio automático sempre expira; política sem prazo não bloqueia.
+5. Teto de 10 bloqueios automáticos por hora, somando todas as políticas.
+6. Não registra o mesmo desfecho duas vezes no mesmo modo dentro da espera.
+7. Toda ação aplicada é desfeita com um clique, e a política respeita o desfazer
+   por uma hora em vez de reaplicar no ciclo seguinte.
+
+O trilho 5 é o mais importante dos sete. Os outros impedem erro pontual; ele impede
+que um erro sistemático vire incidente enquanto ninguém está olhando.
+
+Tudo que a prevenção fez, simulou ou deixou de fazer vira linha na trilha de
+auditoria, com o motivo e, quando foi segurada, qual trilho segurou.
+
+### Bloqueia em dois lugares
+
+Bloquear um IP no Veryon age em dois atuadores ao mesmo tempo:
+
+- `iptables` dentro do namespace de rede do Cowrie, nas portas do honeypot.
+- Um middleware ASGI no backend, que recusa a requisição antes dela chegar na rota.
+
+Os dois leem a mesma condição no banco, e o script de enforcement usa exatamente a
+mesma cláusula de expiração que a API. Sem isso, o botão "Bloquear" numa tela de
+abuso de API não faria nada: o bloqueio antigo só valia pras portas do honeypot.
+
+### Enriquece com reputação pública
+
+IP suspeito é consultado no AbuseIPDB, VirusTotal e OTX, a mesma pergunta que um
+analista faria: esse IP já foi visto fazendo coisa ruim em outro lugar?
+
+---
 
 ## Arquitetura
 
 ```
-Windows/Linux
+Windows / Linux
 │
-├── Honeypot (Cowrie, isolado em rede própria)
-├── Coleta de logs (coletores Python leves: Windows Event Log + auth.log Linux)
-└── Scanner de vulnerabilidades (Nmap / Nuclei)
-        ↓
-Pipeline de análise (normalização de eventos)
-        │
-        ├── Detecção/Alertas (regras Sigma + MITRE ATT&CK)
-        └── Threat Intel (AbuseIPDB / VirusTotal / OTX)
-                ↓
-          Backend / API (FastAPI, REST + JWT)
-                ↓
-             PostgreSQL + TimescaleDB
-                ↓
-        Frontend SOC Dashboard
-                ↓
-           Relatório/SOC (PDF/HTML)
+├── Honeypot Cowrie ────────┐   (rede isolada, sem rota pro core)
+├── Juice Shop ─────────────┤   (alvo vulnerável, rede isolada)
+├── Coletores de log ───────┤   (Event Log do Windows, auth.log do Linux)
+└── Scanner Nmap/Nuclei ────┘
+                            ↓
+                    raw_events (TimescaleDB)
+                            │
+      ┌─────────────────────┼─────────────────────┐
+      ↓                     ↓                     ↓
+  Detecção            Normalizador           Threat Intel
+  (Sigma +            de vulnerabilidade     (AbuseIPDB,
+   MITRE)             (ciclo de vida)         VirusTotal, OTX)
+      │                     │                     │
+      └─────────────────────┼─────────────────────┘
+                            ↓
+                  Backend / API (FastAPI + JWT)
+                     │              │
+   Análise de API ───┤              ├─── Prevenção de ameaça
+   (8 sinais)        │              │    (10 políticas, 7 trilhos)
+                     ↓              ↓
+              Bloqueio em dois atuadores
+              (iptables + middleware ASGI)
+                            ↓
+                    Painel React / Vite
 ```
 
-## Roadmap
+---
 
-- [x] Fase 0: Fundamentos & Ambiente
-- [x] Fase 1: Honeypot + Ingestão bruta
-- [x] Fase 2: Coleta de logs (Windows + Linux)
-- [x] Fase 3: Scanner de vulnerabilidades
-- [x] Fase 4: Pipeline de análise / Detecção & Alertas
-- [x] Fase 5: Threat Intel
-- [x] Fase 6: Backend/API consolidado
-- [x] Fase 7: Relatórios
-- [x] Fase 8: Frontend SOC Dashboard *(login, dashboard, alertas, eventos e threat
-      intel conectados na API real; rate limit e honeypot anti-bot no login;
-      relatórios ainda mockado no front, porque a Fase 7 hoje é um script, não uma
-      rota de API)*
-- [ ] Fase 9: Polimento & Documentação
+## Como rodar na sua máquina
 
-## Isolamento das redes de risco
+### 1. Pré-requisitos
 
-Duas redes rodam código que a gente não confia (honeypot real e app propositalmente
-vulnerável): `honeypot_net` (Cowrie) e `target_net` (Juice Shop, ver Fase 3).
-Nenhuma das duas tem rota para a rede `core` (onde ficam backend, banco e redis).
-As únicas pontes autorizadas são um volume compartilhado somente-leitura (honeypot
-→ `collector`) e a porta publicada do Juice Shop (scanner → host, ver abaixo). Não
-existe canal de rede direto entre essas redes de risco e o resto da stack.
+Você precisa de **Docker** e **Node.js 20+**.
 
-Como o objetivo é permitir tráfego simulado vindo do host (ataques no honeypot,
-scans no alvo vulnerável), as redes não podem ser `internal: true` (isso impediria
-o próprio Docker de publicar as portas). Em vez disso, o isolamento é feito por
-firewall no host: qualquer conexão **nova** originada nas subnets dessas redes
-(`172.28.0.0/24` e `172.29.0.0/24`) é descartada na chain `DOCKER-USER` do iptables.
-Então, mesmo que o Cowrie ou o Juice Shop fossem comprometidos de verdade, não dava
-pra usá-los como pivô pra internet ou pra outros serviços. O tráfego de entrada
-(sessões simuladas, scans) não é afetado, porque usa conexões já estabelecidas.
+No Windows ou macOS, instale o
+[Docker Desktop](https://www.docker.com/products/docker-desktop/), abra o app e
+espere o ícone da baleia ficar "Running". No Linux (ou dentro do WSL2), o serviço
+`docker` nativo via `systemd` funciona igual.
 
-A regra é aplicada por [`infra/firewall/apply-honeypot-egress-block.sh`](infra/firewall/apply-honeypot-egress-block.sh),
-via o serviço systemd `soc-siem-egress-block.service` (roda depois do
-`docker.service`, idempotente).
-
-**Pegadinha que caímos e vale registrar**: o `scanner` (Fase 3) inicialmente estava
-conectado direto na `target_net` pra alcançar o Juice Shop. Só que qualquer
-container ligado a essa rede recebe um IP dentro de `172.29.0.0/24`, então o
-próprio tráfego do scanner acabava batendo na regra de egress-block (ela bloqueia
-pela subnet de origem, não por "quem é o atacante"). A correção foi tirar o scanner
-da `target_net` e fazer ele alcançar o Juice Shop pela porta publicada no host, via
-`host.docker.internal`, assim o scanner nunca entra na rede isolada, só bate na
-porta exposta, como um scanner de verdade faria vindo de fora.
-
-## Coleta de logs (Fase 2)
-
-Além do honeypot, o pipeline ingere telemetria de sistema operacional real, o mesmo
-tipo de sinal que um SOC recebe de endpoints e servidores. Todos os coletores
-gravam na mesma tabela `raw_events`, diferenciados pela coluna `source` (`cowrie`,
-`linux`, `windows`), o que já deixa tudo pronto para a Fase 4 (detecção) sem
-precisar de schemas separados por fonte.
-
-- **Linux**: [`collectors/linux/app.py`](collectors/linux/app.py) roda como
-  container (`linux_collector` no compose), lê `/var/log/auth.log` do host WSL
-  (montado read-only) e classifica eventos de SSH e `sudo`.
-- **Windows**: [`collectors/windows/collector.py`](collectors/windows/collector.py)
-  roda **nativamente no Windows** (fora do Docker/WSL), porque a API de Event Log
-  só existe lá. Usa `pywin32` pra consultar o canal `Security` via XPath (login
-  sucesso/falha, uso de privilégio administrativo, criação de processo/conta) e
-  grava direto no Postgres publicado em `localhost:5432`.
-
-Configuração única do coletor Windows (não precisa repetir depois):
-
-```powershell
-cd collectors\windows
-py -3.13 -m venv .venv
-.\.venv\Scripts\pip install -r requirements.txt
-```
-
-Ele precisa ler o canal `Security`, que por padrão exige privilégio elevado. Em vez
-de rodar como Administrador toda vez, adicionamos o usuário ao grupo local "Event
-Log Readers" (menor privilégio):
-
-```powershell
-# em um PowerShell como Administrador, uma única vez
-Add-LocalGroupMember -SID "S-1-5-32-573" -Member $env:USERNAME
-# depois: deslogar e logar de novo no Windows para o grupo valer
-```
-
-Rodando o coletor (sessão normal, sem admin):
-
-```powershell
-cd collectors\windows
-.\.venv\Scripts\python collector.py
-```
-
-### Estabilidade da WSL2
-
-A VM da WSL2 tem um timeout de inatividade que, mesmo com `docker.service`
-habilitado, pode derrubar a distro (e os containers) entre períodos sem uso ativo.
-Já desativamos o timeout da VM em `%USERPROFILE%\.wslconfig` (`vmIdleTimeout=-1`),
-mas isso sozinho não se mostrou suficiente. A correção que funcionou de fato foi
-manter um processo "mantenedor" conectado à distro:
-
-```powershell
-Start-Process -FilePath "wsl.exe" -ArgumentList "-d","Ubuntu-24.04","--","sleep","infinity" -WindowStyle Hidden
-```
-
-Rode esse comando uma vez no início de cada sessão de trabalho/demo (antes de usar
-os coletores ou testar o honeypot) pra garantir que a WSL, o Docker e o
-encaminhamento de porta `localhost` fiquem estáveis.
-
-## Scanner de vulnerabilidades (Fase 3)
-
-O serviço `scanner` roda **sob demanda** (`profiles: ["tools"]`, não sobe com
-`docker compose up`), um scan é um evento pontual, não um processo contínuo, mesmo
-espírito do honeypot. Ele combina:
-
-- **Nmap**: varredura de porta/serviço direcionada (não usa a lista padrão de
-  top-1000 portas do Nmap, que é calibrada pra internet pública e não inclui portas
-  comuns de infra interna como `6379`/Redis; em vez disso, escaneia as portas
-  exatas de cada serviço conhecido, como um scanner interno de verdade seria
-  configurado, com inventário de ativos).
-- **Nuclei**: templates de vulnerabilidade web (CVEs conhecidas, misconfig,
-  exposições), contra o [OWASP Juice Shop](https://owasp.org/www-project-juice-shop/)
-  (`juice-shop`, porta `3000`), uma aplicação propositalmente vulnerável usada só
-  como alvo de treino, isolada na `target_net` (ver seção de isolamento acima).
-
-Os achados vão pro mesmo `raw_events` (`source='scanner'`,
-`event_type='scanner.nmap.port_open'` ou `'scanner.nuclei.finding'`).
-
-```bash
-docker compose --profile tools run --rm scanner
-```
-
-> Nota: a maioria das vulnerabilidades propositais do Juice Shop são falhas de
-> lógica de aplicação (SQLi, IDOR, controle de acesso quebrado), o tipo de coisa
-> que o Nuclei, por ser baseado em assinaturas/templates de CVEs e
-> misconfigurações conhecidas, não foi feito pra achar. É um resultado esperado e
-> um bom ponto pra discutir em entrevista: entender o que cada ferramenta cobre (e
-> o que não cobre) é tão importante quanto rodar a ferramenta.
-
-## Detecção & Alertas (Fase 4)
-
-O serviço `detection` avalia [regras no formato Sigma](detection/rules/) (o padrão
-da indústria para regras de detecção, mapeadas ao [MITRE ATT&CK](https://attack.mitre.org/))
-contra o `raw_events` e grava correspondências em `alerts`.
-
-- As regras são **validadas** contra o schema oficial do Sigma via
-  [`pysigma`](https://github.com/SigmaHQ/pySigma) antes de entrar em uso: erro de
-  sintaxe é pego na hora, não silenciosamente ignorado.
-- A **avaliação** em si (casar uma regra contra um evento) é um interpretador
-  próprio e enxuto ([`detection/sigma_eval.py`](detection/sigma_eval.py)): cobre o
-  subconjunto do Sigma realmente necessário aqui, um ou mais blocos de seleção
-  combinados com `and`/`or`/`not` e os modificadores
-  `contains`/`startswith`/`endswith`, não a especificação completa (ex: regras
-  formais de correlação, que o Sigma define separadamente).
-- Pra agregação por contagem/janela de tempo (ex: "5 falhas de login do mesmo IP em
-  5 minutos"), as regras usam um bloco `threshold`, uma extensão nossa, não sintaxe
-  oficial do Sigma, avaliado via SQL direto (`detection/engine.py`), não pelo
-  interpretador de `selection`/`condition`.
-- O motor roda em loop (`POLL_SECONDS`), guarda o checkpoint de até onde já
-  processou em `raw_events.id` numa tabela própria (`detection_checkpoint`, no
-  Postgres, sobrevive a rebuild/restart do container), e faz *cooldown* nos
-  alertas de limiar pra não repetir o mesmo alerta a cada ciclo enquanto o ataque
-  continua.
-
-7 regras cobrindo as quatro fontes já ingeridas:
-
-| Regra | Fonte | Nível | MITRE |
-|---|---|---|---|
-| Login bem-sucedido no honeypot | cowrie | high | T1110 |
-| Comando executado no honeypot | cowrie | medium | T1059 |
-| Força bruta SSH (Linux, limiar) | linux | high | T1110.001 |
-| Força bruta de logon (Windows, limiar) | windows | high | T1110 |
-| Logon com privilégio administrativo | windows | low | T1078 |
-| `sudo` com comando sensível | linux | medium | T1548.003 |
-| Achado Nuclei severidade média+ | scanner | medium | T1595 |
-
-```bash
-docker compose exec -T db psql -U socadmin -d socsiem -c \
-  "SELECT ts, title, level, mitre_technique, source_host, source_ip FROM alerts ORDER BY ts DESC LIMIT 20;"
-```
-
-> **Pegadinha que caímos**: na primeira subida do motor, todas as 7 regras
-> falharam na validação (`id` precisa ser um UUID de verdade no Sigma oficial, eu
-> tinha usado slugs tipo `soc-siem-001`). O motor rodou mesmo assim com 0 regras
-> válidas e avançou o checkpoint até o fim do histórico sem nunca ter avaliado
-> nada. Corrigir as regras depois não bastou, o checkpoint já estava lá na
-> frente, então nada "novo" sobrava pra reprocessar. Tive que resetar
-> `detection_checkpoint` manualmente. Boa lição sobre como checkpoint "silencioso"
-> pode mascarar um motor que nunca encontrou nada por estar quebrado, não por
-> falta de eventos.
-
-## Resposta a incidentes: bloqueio de IP
-
-Detectar um ataque é metade do trabalho. A outra metade é decidir o que fazer
-com ele. Na tela de Alertas, ao lado do fluxo de triagem, tem um botão
-"Bloquear IP no honeypot": o analista revisa o alerta (de onde veio, qual
-técnica, qual comando rodou) e só depois decide bloquear. Não é automático de
-propósito, cada bloqueio é uma decisão registrada, com autor e horário.
-
-O bloqueio é de verdade: depois de clicado, o Cowrie para de aceitar conexão
-daquele IP nas portas 2222/2223, o analista consegue reverter a qualquer
-momento pela mesma tela.
-
-- `backend/app/api/alerts.py` (`POST /alerts/{id}/block`) e
-  `backend/app/api/blocklist.py` (`GET /blocklist`, `POST /blocklist/{ip}/unblock`)
-  gravam a decisão na tabela `blocked_ips`.
-- `blocklist-poller` lê essa tabela a cada poucos segundos e escreve a lista
-  atual num volume compartilhado.
-- `blocklist-enforcer` roda com `network_mode: service:cowrie` (compartilha o
-  namespace de rede do próprio Cowrie) e aplica as regras `DROP` no `INPUT`
-  desse namespace.
-
-**Pegadinha que caímos**: a primeira versão bloqueava pelo `DOCKER-USER` do
-host, igual ao egress-block da Fase 1. Não funcionou: toda conexão de teste
-chega via porta publicada em `localhost`, e esse tipo de tráfego passa por
-NAT hairpin, que no Linux não atravessa a chain `FORWARD`/`DOCKER-USER` (o
-contador de pacotes da regra ficava travado em zero mesmo com a conexão
-sendo aceita). A correção foi aplicar o bloqueio dentro do namespace de rede
-do próprio Cowrie em vez do host, aí não importa por qual caminho de NAT o
-pacote chegou, ele passa pelo `INPUT` do container de qualquer jeito antes
-de chegar no processo que está escutando a porta.
-
-## Threat Intel (Fase 5)
-
-O serviço `threatintel` enriquece IPs vistos em `raw_events` com reputação de três
-fontes (todas com plano gratuito): [AbuseIPDB](https://www.abuseipdb.com/) (score
-de abuso 0-100, país, ISP), [VirusTotal](https://www.virustotal.com/) (quantos
-motores de antivírus marcam o IP como malicioso) e [OTX/AlienVault](https://otx.alienvault.com/)
-(quantos "pulses", relatórios de inteligência de ameaça da comunidade,
-referenciam aquele IP). Resultado gravado em `ip_enrichment` (upsert por IP, com
-TTL de 24h pra não reconsultar à toa e estourar os limites do plano gratuito).
-
-**Contexto importante**: como o honeypot e os coletores rodam 100% locais (sem
-exposição pública, por design, ver a seção de isolamento), o IP de origem que a
-gente realmente observa é quase sempre interno/privado (`172.28.0.1`, etc), que
-nenhuma dessas APIs tem o que informar (IP privado não navega na internet, não tem
-reputação pública). O motor já filtra esses automaticamente e nunca gasta chamada
-de API com eles. Pra demonstrar o enriquecimento com um IP público de verdade, use
-o modo sob demanda:
-
-```bash
-docker compose run --rm threatintel --ip 8.8.8.8
-docker compose exec -T db psql -U socadmin -d socsiem -c \
-  "SELECT * FROM ip_enrichment WHERE ip = '8.8.8.8';"
-```
-
-Configuração: crie contas gratuitas nos três serviços, gere uma API key em cada, e
-coloque em `.env` (`ABUSEIPDB_API_KEY`, `VIRUSTOTAL_API_KEY`, `OTX_API_KEY`).
-
-## API consolidada (Fase 6)
-
-O FastAPI (`backend`) expõe os dados coletados nas fases anteriores por trás de
-autenticação **JWT**. Um usuário admin é criado automaticamente no primeiro
-startup, a partir de `ADMIN_USERNAME`/`ADMIN_PASSWORD` no `.env` (senha guardada
-com hash bcrypt, nunca em texto puro no banco).
-
-| Rota | Auth | Descrição |
-|---|---|---|
-| `GET /health` | não | healthcheck (API/DB/Redis) |
-| `POST /auth/login` | não | login (form `username`/`password`), devolve JWT |
-| `GET /events` | sim | lista `raw_events` (filtros: `source`, `event_type`, `src_ip`, `since`, paginação) |
-| `GET /events/{id}` | sim | evento específico |
-| `GET /alerts` | sim | lista `alerts` (filtros: `level`, `rule_id`, `status`, `since`, paginação) |
-| `GET /alerts/{id}` | sim | alerta específico |
-| `PATCH /alerts/{id}` | sim | atualiza status (`open`/`acknowledged`/`closed`) |
-| `GET /enrichment/{ip}` | sim | dados de threat intel de um IP |
-| `GET /stats/summary` | sim | contagens agregadas (eventos por fonte, alertas por nível, top IPs) |
-
-```bash
-# login
-curl -X POST http://localhost:8000/auth/login \
-  -d "username=admin&password=$ADMIN_PASSWORD"
-
-# usar o token
-curl -H "Authorization: Bearer <token>" http://localhost:8000/alerts
-```
-
-A documentação interativa (Swagger, com botão "Authorize" já integrado ao fluxo
-OAuth2/JWT) fica em `http://localhost:8000/docs`.
-
-## Relatórios (Fase 7)
-
-O serviço `reports` roda **sob demanda** (mesmo padrão do `scanner`) e gera um
-relatório de segurança em HTML + PDF a partir de `raw_events`/`alerts`/
-`ip_enrichment`: resumo executivo, tabela de alertas por severidade, técnicas
-MITRE ATT&CK observadas, IPs de origem mais ativos (com contexto de threat intel
-quando disponível) e achados do scanner. Renderizado com Jinja2 (HTML) +
-[WeasyPrint](https://weasyprint.org/) (PDF).
-
-```bash
-docker compose --profile tools run --rm reports --days 7
-```
-
-Os arquivos saem em `reports/output/` (fora do controle de versão, é saída
-gerada, não código-fonte).
-
-## Frontend / Dashboard (Fase 8)
-
-O dashboard (`frontend/`) é a interface que um analista usaria de fato: login com
-JWT, visão geral, fila de alertas com triagem, feed de eventos brutos, consulta de
-reputação de IP e (em breve) relatórios direto pela tela.
-
-A stack é React 19 + TypeScript + Vite, Tailwind CSS v4, componentes
-[shadcn/ui](https://ui.shadcn.com/), animações com [`motion`](https://motion.dev/)
-(sucessor do Framer Motion) e roteamento com `react-router-dom`.
-
-O login chama `POST /auth/login` de verdade: senha errada faz uma chamada real,
-recebe `401` do backend e o botão anima, balança, fica vermelho, mostra um X.
-Senha certa grava o token JWT no navegador (`localStorage`) e libera as rotas
-protegidas; sem token, qualquer tentativa de acessar `/dashboard` e as demais
-telas redireciona pro login. O endpoint também tem rate limit (5 tentativas por
-minuto) e um campo honeypot escondido no formulário, pra travar bot básico sem
-precisar de captcha.
-
-Dashboard, alertas, eventos e threat intel consomem a API real (`/stats/summary`,
-`/alerts`, `/events`, `/enrichment/{ip}`), nada de dado inventado. Mudar o status
-de um alerta na tela grava de verdade no banco via `PATCH /alerts/{id}`. Só a tela
-de Relatórios ainda usa dado de exemplo, porque a Fase 7 hoje é um script, não uma
-rota de API.
-
-Pra mexer no frontend: `frontend/src/pages/` tem uma página por tela,
-`frontend/src/lib/api.ts` é o cliente HTTP com os tipos de cada resposta do
-backend, `frontend/src/lib/auth-context.tsx` cuida da sessão, e a paleta de cores
-fica em tokens CSS dentro de `frontend/src/index.css`, não espalhada pelo código.
-
-> **Pegadinha que caímos**: o backend não tinha CORS configurado. Funcionava liso
-> no Swagger (`/docs`, mesma origem), mas o navegador bloqueava toda chamada vinda
-> do Vite (`localhost:5173`) sem explicação nenhuma na tela, só no console.
-> Resolvido com `CORSMiddleware` liberando explicitamente a origem do frontend em
-> `backend/app/main.py`.
-
-## Guia rápido: do zero até o dashboard no ar
-
-Passo a passo completo, da primeira vez que você abre o projeto até estar logado
-no dashboard vendo dado real. Termos técnicos explicados conforme aparecem.
-
-### 1. Pré-requisitos: Docker
-
-Você precisa do **Docker** rodando (é ele que sobe banco de dados, backend e os
-simuladores de ataque, tudo isolado em containers, como "caixinhas" independentes
-que não bagunçam o resto do seu computador). Duas formas funcionam pra este
-projeto, use a que já estiver disponível na sua máquina:
-
-- **Docker Desktop** (mais simples no Windows): instale de
-  [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/),
-  abra o app e espere o ícone da baleia ficar "Running" na bandeja do sistema.
-- **Docker nativo dentro do WSL2** (Ubuntu 24.04): usado quando não se quer
-  depender do app gráfico do Docker Desktop; o serviço `docker` roda via `systemd`
-  direto na distro Linux.
-
-Confirme que está funcionando:
+Confirme:
 
 ```bash
 docker info
 ```
 
-Se isso responder com informações do servidor (não um erro de conexão), tá pronto.
+Se responder com informação do servidor em vez de erro de conexão, está pronto.
 
-### 2. Configurar variáveis de ambiente
+### 2. Clonar o repositório
 
-O projeto já vem com um `.env.example`. Copie pra `.env` (esse arquivo tem senha e
-chaves de API, por isso não vai pro controle de versão):
+```bash
+git clone https://github.com/omatosz/veryon.git
+```
+
+```bash
+cd veryon
+```
+
+### 3. Configurar o ambiente
+
+O projeto vem com um `.env.example`. Copie pra `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Se quiser reputação de IP de verdade (Fase 5, Threat Intel), crie contas gratuitas
-em [AbuseIPDB](https://www.abuseipdb.com/), [VirusTotal](https://www.virustotal.com/)
-e [OTX/AlienVault](https://otx.alienvault.com/), gere uma API key em cada, e cole
-nas variáveis `ABUSEIPDB_API_KEY`, `VIRUSTOTAL_API_KEY`, `OTX_API_KEY` do `.env`.
-Sem isso, o projeto funciona igual, só não retorna reputação real pra IPs
-públicos.
+Abra o `.env` e preencha, no mínimo:
 
-### 3. Subir o backend (API + banco + honeypot + detecção)
+| Variável | Pra que serve |
+|---|---|
+| `POSTGRES_PASSWORD` | Senha do banco. Escolha qualquer uma. |
+| `JWT_SECRET` | Segredo que assina o token de login. Gere um seu. |
+| `ADMIN_PASSWORD` | Sua senha de acesso ao painel. |
+
+Pra gerar o `JWT_SECRET`:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+**Opcionais**, o projeto sobe sem eles:
+
+| Variável | Efeito de deixar vazio |
+|---|---|
+| `ABUSEIPDB_API_KEY` | Sem reputação real de IP. O resto funciona igual. |
+| `VIRUSTOTAL_API_KEY` | Idem. |
+| `OTX_API_KEY` | Idem. |
+| `INGEST_API_KEY` | O endpoint de ingestão de log externo fica desligado e recusa tudo. |
+
+As três primeiras têm conta gratuita em [AbuseIPDB](https://www.abuseipdb.com/),
+[VirusTotal](https://www.virustotal.com/) e [OTX](https://otx.alienvault.com/).
+
+O `.env` nunca vai pro controle de versão. Ele está no `.gitignore`.
+
+### 4. Subir tudo
 
 ```bash
 docker compose up -d --build
 ```
 
-Isso builda e sobe, em segundo plano: banco (PostgreSQL/TimescaleDB), Redis, a API
-(`backend`), o honeypot (`cowrie`), o alvo vulnerável (`juice-shop`), os coletores
-de log, o motor de detecção e o serviço de threat intel. Confirme que está tudo
-certo:
+Isso sobe, em segundo plano: banco (PostgreSQL/TimescaleDB), Redis, a API, o
+honeypot, o alvo vulnerável, os coletores, o motor de detecção, o scanner, o serviço
+de threat intel e os dois atuadores de bloqueio. A primeira vez demora alguns
+minutos porque builda as imagens.
+
+Confirme que subiu:
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-Resposta esperada:
+Resposta esperada, com `api`, `database` e `redis` em `ok`:
 
 ```json
-{"api": "ok", "database": "ok", "redis": "ok"}
+{
+  "api": "ok",
+  "database": "ok",
+  "redis": "ok",
+  "blocklist": { "entries": 0, "loaded_at": "..." },
+  "api_traffic": { "queued": 0, "dropped": 0 }
+}
 ```
 
-### 4. Subir o frontend (dashboard)
+### 5. Subir o painel
 
 Em outro terminal:
 
 ```bash
 cd frontend
+```
+
+```bash
 npm install
+```
+
+```bash
 npm run dev
 ```
 
-Abra `http://localhost:5173` no navegador.
+Abra `http://localhost:5173`.
 
-### 5. Fazer login
+### 6. Entrar
 
-Usuário e senha são criados automaticamente na primeira subida do backend, a
-partir de `ADMIN_USERNAME`/`ADMIN_PASSWORD` no seu `.env` (usuário padrão:
-`admin`). Depois de logado:
-
-- **Dashboard**: visão geral, total de eventos ingeridos, alertas por
-  severidade, eventos por fonte, IPs de origem mais ativos.
-- **Alertas**: fila de triagem, filtra por severidade/status, clica num alerta
-  pra ver os detalhes e o payload do evento que disparou a regra, e muda o status
-  (Aberto → Reconhecido → Fechado).
-- **Eventos**: feed bruto de tudo que foi ingerido (logs de honeypot, Linux,
-  Windows, scanner), antes de qualquer regra de detecção rodar em cima.
-- **Threat Intel**: consulta a reputação pública de um IP (score de abuso, país,
-  ISP, engines de antivírus que marcam como malicioso).
-- **Relatórios**: ainda com dado de exemplo (ver seção do Frontend acima).
-
-### 6. Ver o pipeline funcionando de ponta a ponta
-
-Pra ver um ataque de verdade atravessar o sistema inteiro, do honeypot até virar
-alerta na tela, simule um login no honeypot SSH:
-
-```bash
-sshpass -p 'qualquer-senha' ssh -p 2222 -o StrictHostKeyChecking=no root@localhost 'whoami'
-```
-
-Em alguns segundos (o motor de detecção roda em loop curto), um alerta **high**,
-"Login bem-sucedido no honeypot", aparece na tela de Alertas.
+Usuário e senha são criados na primeira subida do backend, a partir de
+`ADMIN_USERNAME` e `ADMIN_PASSWORD` do seu `.env`. O usuário padrão é `admin`.
 
 ### 7. Parar tudo
 
@@ -505,21 +299,141 @@ Em alguns segundos (o motor de detecção roda em loop curto), um alerta **high*
 docker compose down
 ```
 
-(o frontend para com `Ctrl+C` no terminal onde rodou `npm run dev`)
+O painel para com `Ctrl+C` no terminal onde rodou `npm run dev`. Pra apagar também
+os dados do banco, use `docker compose down -v`.
+
+---
+
+## Primeiro tour pelo painel
+
+| Tela | O que tem |
+|---|---|
+| **Dashboard** | Visão geral. O gráfico de colunas filtra por tipo de alerta, e o filtro "Origem dos IPs" gira o cartão e revela o mapa-múndi. |
+| **Alertas** | Fila de triagem. Filtra por severidade e status, abre o detalhe com o evento que disparou a regra, e muda o status. |
+| **Eventos** | Feed bruto de tudo que foi ingerido, antes de qualquer regra rodar em cima. |
+| **Vulnerabilidades** | Achados com ciclo de vida, score de risco do parque, e o botão que pede uma varredura na hora. |
+| **Análise de API** | Chamadores pontuados pelos oito sinais, com as requisições que geraram cada score, e o inventário de rotas separando conhecida de fantasma. |
+| **Prevenção** | Fila crítica das três origens juntas, as dez políticas com simulação, e a trilha de auditoria com desfazer. |
+| **Threat Intel** | Consulta de reputação pública de um IP. |
+
+---
+
+## Simular ataques
+
+Tem um guia completo em **[docs/ATAQUES.md](docs/ATAQUES.md)**, com o passo a passo
+de cada ataque, qual terminal usar e o que esperar ver aparecer no painel.
+
+O mais rápido pra confirmar que o pipeline inteiro funciona, um login no honeypot
+SSH:
+
+```bash
+ssh -p 2222 -o StrictHostKeyChecking=no root@localhost
+```
+
+Digite qualquer senha (o honeypot aceita), e em poucos segundos um alerta **high**
+aparece na tela de Alertas.
+
+---
+
+## Decisões técnicas que valem comentário
+
+**Coleta de tráfego fora do caminho da requisição.** O middleware que observa a API
+não escreve no banco: ele empilha num buffer em memória e o flusher grava em lote.
+Sem isso, toda chamada pagaria um INSERT antes de responder, e a ferramenta de
+observar viraria o gargalo do observado. A fila é limitada; se encher, a amostra
+mais nova é descartada em vez de segurar a requisição do usuário.
+
+**Middleware ASGI puro em vez de `BaseHTTPMiddleware`.** O do Starlette monta um par
+de streams por requisição, e essas checagens rodam em todas elas. Em ASGI puro o
+custo é uma busca em set na memória.
+
+**Ordem de middleware é carregada.** O bloqueio fica por dentro do CORS de propósito:
+por fora, o 403 sairia sem cabeçalho CORS e o navegador mostraria erro de CORS no
+lugar do motivo real. Já o coletor de tráfego fica por fora do bloqueio e do
+limitador de taxa, pra registrar também a requisição que levou 403 e a que levou 429.
+Tentativa recusada é justamente o que interessa numa investigação.
+
+**Savepoint por política no motor de prevenção.** Capturar a exceção em Python não
+basta: consulta que falha aborta a transação do Postgres, e daí toda política
+seguinte quebra em cascata. Sem o savepoint, uma regra com defeito derrubaria o motor
+inteiro em silêncio, logando aviso sobre uma só. Pra ferramenta de segurança esse é o
+pior tipo de falha: o sistema parece vivo e não faz nada.
+
+**Retrato imutável da blocklist.** Uma tarefa recarrega a lista do banco a cada
+poucos segundos e troca o retrato inteiro de uma vez, então quem está lendo no meio
+do caminho sempre vê estado coerente. Se o banco piscar, o retrato anterior é
+mantido: é melhor bloquear a mais do que abrir a porta porque uma consulta falhou.
+
+**Deduplicação por `(ativo, assinatura)`.** A assinatura de uma porta aberta exclui a
+versão do serviço de propósito. Assim, atualizar o Postgres muda o título do achado
+existente em vez de criar um novo e deixar o antigo órfão.
+
+**`FOR UPDATE SKIP LOCKED` na fila de varredura.** Garante que dois scanners nunca
+peguem o mesmo trabalho, mesmo se alguém subir uma segunda réplica.
+
+---
+
+## Isolamento das redes de risco
+
+Duas redes rodam código que não se confia: `honeypot_net` (Cowrie) e `target_net`
+(Juice Shop). Nenhuma das duas tem rota pra rede `core`, onde ficam backend, banco e
+Redis. O tráfego de saída do honeypot é bloqueado por regra de firewall, então um
+atacante que "escape" pra dentro do container não consegue usar ele pra alcançar
+outra coisa.
+
+---
 
 ## Estrutura do repositório
 
 ```
-backend/        API FastAPI (Fase 0+)
-infra/postgres/ Scripts de inicialização do banco
-infra/firewall/ Regra de egress-block da rede do honeypot (Fase 1)
-collector/      Coletor do Cowrie (honeypot → raw_events) (Fase 1)
-collectors/     Coletores de log de SO: Linux (container) e Windows (nativo) (Fase 2)
-scanner/        Nmap + Nuclei contra os serviços internos e o Juice Shop (Fase 3)
-detection/      Regras Sigma (validadas via pysigma) + motor de avaliação próprio (Fase 4)
-enforcement/    Bloqueio de IP no honeypot pós-triagem do analista
-threatintel/    Enriquecimento de IP via AbuseIPDB/VirusTotal/OTX (Fase 5)
-reports/        Geração de relatório SOC em HTML/PDF (Fase 7)
-frontend/       Dashboard web (React/Vite): login, alertas, eventos, threat intel (Fase 8)
-landing/        Landing page de portfólio (React/Vite), publicada via GitHub Pages
+backend/
+  app/api/          Rotas REST (auth, eventos, alertas, vulnerabilidades,
+                    análise de API, prevenção, ingestão, blocklist, stats)
+  app/core/         Motores: sinais de API, analisador, prevenção, blocklist
+  app/middleware/   Bloqueio de IP e coleta de tráfego, ambos ASGI puro
+  migrations/       Alembic
+collector/          Coletor do Cowrie (honeypot → raw_events)
+collectors/         Coletores de log de SO: Linux e Windows
+detection/          Regras Sigma + motor de avaliação
+enforcement/        Bloqueio via iptables no namespace do honeypot
+scanner/            Nmap + Nuclei, e o normalizador de ciclo de vida
+threatintel/        Enriquecimento de IP
+reports/            Relatório SOC em HTML/PDF
+frontend/           Painel React/Vite
+landing/            Landing page, publicada via GitHub Pages
+infra/              Init do Postgres e regra de firewall
+docs/               Guias
 ```
+
+---
+
+## Segurança do próprio repositório
+
+Nada de credencial, chave de API ou dado de acesso vai pro controle de versão. O
+`.env` está no `.gitignore` e só o `.env.example`, com campos vazios, é versionado.
+
+Um ponto que merece aviso pra quem for rodar: o honeypot Cowrie registra em texto
+claro tudo que é digitado numa sessão, **senha inclusive**. Se você testar o honeypot
+digitando uma senha que usa de verdade em outro lugar, ela fica gravada no log do
+container. Use senha descartável.
+
+---
+
+## Roadmap
+
+- [x] Fundamentos e ambiente
+- [x] Honeypot e ingestão bruta
+- [x] Coleta de log de Windows e Linux
+- [x] Scanner de vulnerabilidades
+- [x] Detecção e alertas com Sigma + MITRE
+- [x] Threat Intel
+- [x] Backend/API consolidado
+- [x] Relatórios
+- [x] Painel web
+- [x] Bloqueio de IP em dois atuadores, com prazo e allowlist
+- [x] Vulnerabilidades com ciclo de vida e fila de varredura
+- [x] Análise de comportamento de API e ingestão de log externo
+- [x] Prevenção de ameaça com política, simulação e trilha de auditoria
+- [x] Gráfico interativo e mapa de origem dos IPs
+- [ ] Relatórios como rota de API, não script
+- [ ] Multi-tenant, pra apontar num cliente por vez
