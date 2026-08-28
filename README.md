@@ -409,13 +409,13 @@ docs/               Guias
 
 ## Segurança do próprio repositório
 
-Nada de credencial, chave de API ou dado de acesso vai pro controle de versão. O
-`.env` está no `.gitignore` e só o `.env.example`, com campos vazios, é versionado.
+Nenhuma credencial, chave de API ou dado de acesso vai pro controle de versão. O
+`.env` fica no `.gitignore`; só o `.env.example`, com os campos vazios, é versionado.
 
-Um ponto que merece aviso pra quem for rodar: o honeypot Cowrie registra em texto
-claro tudo que é digitado numa sessão, **senha inclusive**. Se você testar o honeypot
-digitando uma senha que usa de verdade em outro lugar, ela fica gravada no log do
-container. Use senha descartável.
+Uma ressalva que vale registrar: o Cowrie grava em texto claro tudo que é digitado
+numa sessão do honeypot, senha inclusive. Por isso os testes do honeypot pedem senha
+descartável, nunca uma senha real de outro serviço, que acabaria gravada no log do
+container.
 
 ---
 
