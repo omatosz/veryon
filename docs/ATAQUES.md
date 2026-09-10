@@ -20,7 +20,7 @@ docker compose up -d
 ```
 
 Não dê `--build` por hábito antes de cada ataque: reconstruir recria o honeypot, gera
-uma chave de host SSH nova e deixa portas presas pra trás — as três causas mais comuns
+uma chave de host SSH nova e deixa portas presas pra trás, as três causas mais comuns
 de "o ataque roda mas não aparece no painel". Se cair nisso, veja **Quando o ataque não
 aparece** no fim deste guia.
 

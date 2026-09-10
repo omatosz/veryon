@@ -45,7 +45,7 @@ async def get_alert(alert_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Alert).where(Alert.id == alert_id))
     alert = result.scalars().first()
     if alert is None:
-        raise HTTPException(status_code=404, detail="Alerta nao encontrado")
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
     return alert
 
 
@@ -76,7 +76,7 @@ async def update_alert_status(
     result = await db.execute(select(Alert).where(Alert.id == alert_id))
     alert = result.scalars().first()
     if alert is None:
-        raise HTTPException(status_code=404, detail="Alerta nao encontrado")
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
 
     alert.status = body.status
     # Nota vazia nao apaga a que ja existia: quem reconhece um alerta depois
@@ -103,9 +103,9 @@ async def block_alert_ip(
     result = await db.execute(select(Alert).where(Alert.id == alert_id))
     alert = result.scalars().first()
     if alert is None:
-        raise HTTPException(status_code=404, detail="Alerta nao encontrado")
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
     if not alert.source_ip:
-        raise HTTPException(status_code=422, detail="Alerta nao tem IP de origem pra bloquear")
+        raise HTTPException(status_code=422, detail="Alerta não tem IP de origem pra bloquear")
 
     # Mesmas travas do bloqueio manual: allowlist, IP proprio e duplicata.
     # Uma funcao so pros dois caminhos, senao um dos dois acaba mais fraco.

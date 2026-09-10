@@ -32,7 +32,7 @@ def _autorizar(chave: str | None) -> None:
     # compare_digest em vez de ==: comparacao normal sai mais cedo no primeiro
     # byte diferente, e isso da pra medir e usar pra adivinhar a chave.
     if not chave or not secrets.compare_digest(chave, esperada):
-        raise HTTPException(status_code=401, detail="Chave de ingestao invalida")
+        raise HTTPException(status_code=401, detail="Chave de ingestão inválida")
 
 
 @router.post("/api-logs", response_model=IngestResult)

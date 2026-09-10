@@ -148,14 +148,14 @@ VOLUME_MIN_BASELINE = 200        # referencia abaixo disso nao serve de base
 VOLUME_MIN_SAMPLES = 4           # amostras na janela pra mediana valer algo
 
 SIGNAL_LABELS = {
-    "injection": ("Tentativa de injecao", 40),
-    "auth_burst": ("Rajada de falha de autenticacao", 30),
+    "injection": ("Tentativa de injeção", 40),
+    "auth_burst": ("Rajada de falha de autenticação", 30),
     "enumeration": ("Varredura de rotas", 25),
     "shadow_api": ("API fantasma respondendo", 25),
     "object_walk": ("Acesso sequencial a objetos", 20),
-    "volume_anomaly": ("Volume de resposta fora do padrao", 20),
-    "sensitive_hit": ("Acesso a endpoint sensivel", 15),
-    "odd_method": ("Metodo HTTP fora do esperado", 10),
+    "volume_anomaly": ("Volume de resposta fora do padrão", 20),
+    "sensitive_hit": ("Acesso a endpoint sensível", 15),
+    "odd_method": ("Método HTTP fora do esperado", 10),
 }
 
 
@@ -300,10 +300,10 @@ def score_requests(
 
     if injection_hits:
         detail = ", ".join(f"{k} ({v}x)" for k, v in sorted(injection_hits.items()))
-        signals.append(_signal("injection", f"padroes detectados: {detail}"))
+        signals.append(_signal("injection", f"padrões detectados: {detail}"))
 
     if auth_fails >= AUTH_FAIL_THRESHOLD:
-        signals.append(_signal("auth_burst", f"{auth_fails} respostas 401/403 em rota de autenticacao"))
+        signals.append(_signal("auth_burst", f"{auth_fails} respostas 401/403 em rota de autenticação"))
 
     distinct = len(routes)
     if distinct >= ENUM_ROUTE_THRESHOLD and not_found / len(rows) >= ENUM_NOTFOUND_RATIO:
@@ -312,7 +312,7 @@ def score_requests(
 
     if shadow:
         amostra = ", ".join(sorted(shadow)[:3])
-        signals.append(_signal("shadow_api", f"{len(shadow)} rota(s) nao documentada(s) respondendo: {amostra}"))
+        signals.append(_signal("shadow_api", f"{len(shadow)} rota(s) não documentada(s) respondendo: {amostra}"))
 
     for route, found in ids_by_route.items():
         if len(found) < WALK_ID_THRESHOLD:
@@ -340,7 +340,7 @@ def score_requests(
 
     if sensitive:
         amostra = ", ".join(sorted(sensitive)[:3])
-        signals.append(_signal("sensitive_hit", f"acessou {len(sensitive)} endpoint(s) sensivel(is): {amostra}"))
+        signals.append(_signal("sensitive_hit", f"acessou {len(sensitive)} endpoint(s) sensível(is): {amostra}"))
 
     if odd:
         signals.append(_signal("odd_method", ", ".join(sorted(odd)[:3])))

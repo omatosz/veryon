@@ -806,12 +806,19 @@ export interface ApiActorDetail extends ApiActor {
 }
 
 export interface ApiActorEvent {
+  /** Quando aconteceu pela última vez. */
   ts: string
   fonte: 'honeypot' | 'alerta' | 'api' | 'resposta'
   titulo: string
   detalhe: string | null
   nivel: string | null
   ip: string | null
+  /** Quantas vezes seguidas a mesma coisa aconteceu. `desde` só vem
+   *  preenchido quando `vezes` é maior que 1. */
+  vezes: number
+  desde: string | null
+  /** De quantos endereços veio o grupo. Com mais de um, `ip` vem nulo. */
+  ips: number
 }
 
 export function listActors(params: { status?: string; acao?: string } = {}) {

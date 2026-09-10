@@ -38,6 +38,46 @@ const ACAO = {
 
 const CONFIANCA: Record<string, string> = { high: 'alta', medium: 'média', low: 'baixa' }
 
+/** Número com vírgula. O `toFixed` do JS devolve ponto, e a frase da tela
+ *  acabava misturando "0.60" com "0,35" na mesma linha. */
+function decimal(n: number, casas = 2): string {
+  return n.toFixed(casas).replace('.', ',')
+}
+
+/** A quebra por traço da junção, legível.
+ *
+ *  Isto era um JSON.stringify cru numa linha só. Evidência que ninguém
+ *  consegue ler é evidência que ninguém usa, e o ponto de mostrar a quebra é
+ *  justamente deixar o analista discordar com dado na mão. */
+function Quebra({ detalhe }: { detalhe: Record<string, unknown> }) {
+  const NOME: Record<string, string> = {
+    cabecalhos: 'cabeçalhos',
+    agente: 'agente',
+    ritmo: 'ritmo',
+    perfil: 'perfil',
+    score: 'no total',
+    distintividade: 'distintividade',
+  }
+  const numeros = Object.entries(detalhe).filter(([, v]) => typeof v === 'number')
+  const motivo = typeof detalhe.motivo === 'string' ? detalhe.motivo : null
+
+  return (
+    <div className="mt-1.5 text-[11px] text-muted-foreground">
+      {numeros.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+          {numeros.map(([chave, valor]) => (
+            <span key={chave}>
+              {NOME[chave] ?? chave}{' '}
+              <span className="font-mono text-foreground">{decimal(valor as number)}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {motivo && <div className="mt-0.5 italic">{motivo}</div>}
+    </div>
+  )
+}
+
 const FONTE: Record<string, { rotulo: string; cor: string }> = {
   honeypot: { rotulo: 'honeypot', cor: '#F59E0B' },
   alerta: { rotulo: 'alerta', cor: '#EF4444' },
@@ -93,7 +133,7 @@ function Evidencia({ ator, onMudou }: { ator: ApiActorDetail; onMudou: () => voi
           ))}
         </div>
         <p className="mt-1.5 text-[11px] text-muted-foreground">
-          Distintividade {ator.distinctiveness.toFixed(2)}. Abaixo de 0,35 o Veryon não junta
+          Distintividade {decimal(ator.distinctiveness)}. Abaixo de 0,35 o Veryon não junta
           endereço nenhum: comportamento comum demais junta todo mundo no mesmo ator.
         </p>
       </div>
@@ -118,7 +158,7 @@ function Evidencia({ ator, onMudou }: { ator: ApiActorDetail; onMudou: () => voi
                   </span>
                 )}
                 <span className="ml-auto text-[11px] text-muted-foreground">
-                  semelhança {ip.similarity.toFixed(2)} · {ip.request_count} requisições
+                  semelhança {decimal(ip.similarity)} · {ip.request_count} requisições
                 </span>
                 <button
                   type="button"
@@ -135,11 +175,7 @@ function Evidencia({ ator, onMudou }: { ator: ApiActorDetail; onMudou: () => voi
                   Separar
                 </button>
               </div>
-              {ip.match_detail && (
-                <pre className="mt-1.5 whitespace-pre-wrap break-all font-mono text-[10.5px] leading-relaxed text-primary/70">
-                  {JSON.stringify(ip.match_detail)}
-                </pre>
-              )}
+              {ip.match_detail && <Quebra detalhe={ip.match_detail} />}
             </div>
           ))}
         </div>
@@ -289,7 +325,23 @@ function Gaveta({ ref_, onFechar }: { ref_: string; onFechar: () => void }) {
                         {f.rotulo}
                       </span>
                       <span className="text-[11px] text-muted-foreground">{formatDateTime(e.ts)}</span>
-                      {e.ip && <span className="font-mono text-[11px] text-muted-foreground">{e.ip}</span>}
+                      {e.ip ? (
+                        <span className="font-mono text-[11px] text-muted-foreground">{e.ip}</span>
+                      ) : (
+                        e.ips > 1 && (
+                          <span className="text-[11px] text-muted-foreground">
+                            {e.ips} endereços do ator
+                          </span>
+                        )
+                      )}
+                      {/* Repetição vira contador. O motor de prevenção roda em
+                          observação a cada ciclo e enchia a linha do tempo com
+                          dezenas de entradas idênticas. */}
+                      {e.vezes > 1 && (
+                        <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          {e.vezes}x{e.desde && `, desde ${formatDateTime(e.desde)}`}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[12.5px] text-foreground">{e.titulo}</div>
                     {e.detalhe && (

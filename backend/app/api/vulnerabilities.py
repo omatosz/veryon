@@ -90,7 +90,7 @@ async def get_vulnerability(vuln_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Vulnerability).where(Vulnerability.id == vuln_id))
     vuln = result.scalars().first()
     if vuln is None:
-        raise HTTPException(status_code=404, detail="Vulnerabilidade nao encontrada")
+        raise HTTPException(status_code=404, detail="Vulnerabilidade não encontrada")
     return vuln
 
 
@@ -104,7 +104,7 @@ async def update_vulnerability(
     result = await db.execute(select(Vulnerability).where(Vulnerability.id == vuln_id))
     vuln = result.scalars().first()
     if vuln is None:
-        raise HTTPException(status_code=404, detail="Vulnerabilidade nao encontrada")
+        raise HTTPException(status_code=404, detail="Vulnerabilidade não encontrada")
 
     vuln.status = body.status
     vuln.updated_by = current_user

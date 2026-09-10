@@ -74,14 +74,14 @@ class CanalIn(BaseModel):
         if kind == "email":
             destinos = [d.strip() for d in v.split(",") if d.strip()]
             if not destinos:
-                raise ValueError("informe ao menos um destinatario")
+                raise ValueError("informe ao menos um destinatário")
             ruins = [d for d in destinos if not RE_EMAIL.match(d)]
             if ruins:
-                raise ValueError(f"endereco de e-mail invalido: {', '.join(ruins)}")
+                raise ValueError(f"endereço de e-mail inválido: {', '.join(ruins)}")
             return ", ".join(destinos)
 
         if not v.startswith(("http://", "https://")):
-            raise ValueError("webhook precisa comecar com http:// ou https://")
+            raise ValueError("webhook precisa começar com http:// ou https://")
         return v
 
 
@@ -137,7 +137,7 @@ INSERT_CANAL = text(
 async def _busca_canal(db: AsyncSession, canal_id: int) -> dict[str, Any]:
     linha = (await db.execute(SELECT_CANAL, {"id": canal_id})).mappings().first()
     if linha is None:
-        raise HTTPException(status_code=404, detail="Canal nao encontrado")
+        raise HTTPException(status_code=404, detail="Canal não encontrado")
     return dict(linha)
 
 
@@ -155,7 +155,7 @@ async def criar_canal(dados: CanalIn, db: AsyncSession = Depends(get_db)):
         # O unico UNIQUE da tabela e o nome. Devolver 409 em vez de 500 diz a
         # quem chamou que o problema e o dado, nao o servidor.
         if "unique" in str(exc).lower():
-            raise HTTPException(status_code=409, detail="Ja existe canal com esse nome")
+            raise HTTPException(status_code=409, detail="Já existe canal com esse nome")
         raise
     await db.commit()
     return dict(linha)

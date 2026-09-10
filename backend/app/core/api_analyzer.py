@@ -149,7 +149,7 @@ CLEAR_STALE = text(
 
 
 def _describe(ip: str, result: dict) -> str:
-    linhas = [f"{result['request_count']} requisicoes de {ip} em {api_signals.WINDOW_MINUTES} minutos."]
+    linhas = [f"{result['request_count']} requisições de {ip} em {api_signals.WINDOW_MINUTES} minutos."]
     for sinal in result["signals"]:
         linhas.append(f"{sinal['label']} ({sinal['weight']} pts): {sinal['evidence']}")
     return "\n".join(linhas)
@@ -222,7 +222,7 @@ async def analyze_once() -> dict:
             if result["score"] < api_signals.ALERT_THRESHOLD or status in ("benign", "resolved"):
                 continue
 
-            titulo = f"Comportamento suspeito de API em {ip} (score {result['score']})"
+            titulo = f"Comportamento suspeito de API em {ip} (pontuação {result['score']})"
             nivel = "critical" if result["score"] >= api_signals.PREVENTION_THRESHOLD else "high"
             payload = json.dumps(
                 {

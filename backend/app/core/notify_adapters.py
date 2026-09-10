@@ -52,7 +52,7 @@ def _linha_resumo(resumo: dict[str, Any]) -> str:
 
     quantos = int(resumo.get("alert_count") or 1)
     if quantos > 1:
-        partes.append(f"({quantos} ocorrencias agrupadas)")
+        partes.append(f"({quantos} ocorrências agrupadas)")
 
     return " ".join(partes)
 
@@ -72,10 +72,10 @@ def frase_do_ator(resumo: dict[str, Any]) -> str | None:
     frase = f"ator {ref}"
     ips = int(resumo.get("actor_ips") or 0)
     if ips > 1:
-        frase += f", mesmo padrao visto de {ips} IPs"
+        frase += f", mesmo padrão visto de {ips} IPs"
     conf = resumo.get("actor_confidence")
     if conf:
-        frase += f", confianca {CONFIANCA_EM_PORTUGUES.get(conf, conf)}"
+        frase += f", confiança {CONFIANCA_EM_PORTUGUES.get(conf, conf)}"
     return frase
 
 
@@ -89,8 +89,8 @@ def _detalhes(resumo: dict[str, Any]) -> list[tuple[str, str]]:
         ("Origem", resumo.get("source_ip")),
         ("Ator", frase_do_ator(resumo)),
         ("Severidade", resumo.get("level")),
-        ("Ocorrencias", str(resumo.get("alert_count") or 1)),
-        ("Tecnica MITRE", resumo.get("mitre_technique")),
+        ("Ocorrências", str(resumo.get("alert_count") or 1)),
+        ("Técnica MITRE", resumo.get("mitre_technique")),
     ]
     return [(rotulo, str(valor)) for rotulo, valor in itens if valor]
 
@@ -162,7 +162,7 @@ def corpo_email(resumo: dict[str, Any]) -> dict[str, Any]:
         linhas += [
             "",
             f"Este e-mail representa {quantos} alertas do mesmo tipo e da mesma "
-            "origem, agrupados para nao encher a caixa de entrada.",
+            "origem, agrupados para não encher a caixa de entrada.",
         ]
 
     linhas += ["", "Detalhes completos na tela de Alertas do Veryon."]
@@ -192,8 +192,8 @@ def _linhas_digest(itens: list[dict[str, Any]]) -> tuple[str, list[str]]:
     pior = (ordenados[0].get("level") or "?").upper() if ordenados else "?"
 
     titulo = (
-        f"Resumo do Veryon: {len(ordenados)} situacoes, "
-        f"{total_alertas} alertas no periodo. Mais grave: {pior}"
+        f"Resumo do Veryon: {len(ordenados)} situações, "
+        f"{total_alertas} alertas no período. Mais grave: {pior}"
     )
 
     linhas = []

@@ -96,6 +96,7 @@ class AtorDetalhe(AtorResumo):
 
 
 class EventoDaLinha(BaseModel):
+    # Quando aconteceu pela ultima vez.
     ts: datetime
     # 'honeypot' | 'alerta' | 'api' | 'resposta'
     fonte: str
@@ -103,6 +104,13 @@ class EventoDaLinha(BaseModel):
     detalhe: str | None = None
     nivel: str | None = None
     ip: str | None = None
+    # Quantas vezes seguidas a mesma coisa aconteceu, e desde quando. Com
+    # vezes == 1 o campo desde vem nulo: nao ha intervalo para mostrar.
+    vezes: int = 1
+    desde: datetime | None = None
+    # De quantos enderecos diferentes veio o grupo. Com mais de um, o campo ip
+    # fica nulo: nao daria para escolher qual mostrar sem mentir.
+    ips: int = 1
 
 
 class AtorUpdate(BaseModel):
@@ -128,8 +136,8 @@ def decidir(ator: dict[str, Any]) -> Decisao:
         return Decisao(
             acao="bloquear",
             porque=(
-                f"Mesmo padrao confirmado com confianca alta e pontuacao {score}. "
-                f"Bloquear {alcance} de uma vez fecha a porta que trocar de endereco abriria."
+                f"Mesmo padrão confirmado com confiança alta e pontuação {score}. "
+                f"Bloquear {alcance} de uma vez fecha a porta que trocar de endereço abriria."
             ),
         )
 
@@ -137,9 +145,9 @@ def decidir(ator: dict[str, Any]) -> Decisao:
         return Decisao(
             acao="investigar",
             porque=(
-                f"Comportamento grave, pontuacao {score}, mas a juncao dos enderecos tem "
-                f"confianca {CONFIANCA_EM_PORTUGUES.get(conf, conf)}. Olhe a evidencia antes "
-                "de bloquear: bloquear juncao fraca acerta quem nao fez nada."
+                f"Comportamento grave, pontuação {score}, mas a junção dos endereços tem "
+                f"confiança {CONFIANCA_EM_PORTUGUES.get(conf, conf)}. Olhe a evidência antes "
+                "de bloquear: bloquear junção fraca acerta quem não fez nada."
             ),
         )
 
@@ -147,16 +155,16 @@ def decidir(ator: dict[str, Any]) -> Decisao:
         return Decisao(
             acao="investigar",
             porque=(
-                f"A mesma ferramenta apareceu de {ips} enderecos diferentes. Ainda nao fez "
-                "nada grave, e trocar de IP sem motivo ja e o motivo."
+                f"A mesma ferramenta apareceu de {ips} endereços diferentes. Ainda não fez "
+                "nada grave, e trocar de IP sem motivo já é o motivo."
             ),
         )
 
     return Decisao(
         acao="observar",
         porque=(
-            f"Pontuacao {score} e confianca {CONFIANCA_EM_PORTUGUES.get(conf, conf)}. "
-            "Nada aqui pede acao agora."
+            f"Pontuação {score} e confiança {CONFIANCA_EM_PORTUGUES.get(conf, conf)}. "
+            "Nada aqui pede ação agora."
         ),
     )
 
@@ -211,7 +219,7 @@ async def _buscar(db: AsyncSession, ref: str) -> dict[str, Any]:
         await db.execute(text(SELECT_BASE + " WHERE ref = :ref"), {"ref": ref})
     ).mappings().first()
     if linha is None:
-        raise HTTPException(status_code=404, detail="Ator nao encontrado")
+        raise HTTPException(status_code=404, detail="Ator não encontrado")
     return dict(linha)
 
 
@@ -350,7 +358,7 @@ async def timeline(
             {
                 "ts": linha["ts"],
                 "fonte": "api",
-                "titulo": f"Achado de API, pontuacao {linha['score']}",
+                "titulo": f"Achado de API, pontuação {linha['score']}",
                 "detalhe": nomes or None,
                 "nivel": linha["severity"],
                 "ip": linha["client_ip"],
@@ -370,7 +378,59 @@ async def timeline(
         )
 
     eventos.sort(key=lambda e: e["ts"], reverse=True)
-    return eventos[:limit]
+    return _juntar_repetidos(eventos)[:limit]
+
+
+def _juntar_repetidos(eventos: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Junta ocorrencias iguais e seguidas numa linha so, com contador.
+
+    O motor de prevencao roda em observacao a cada ciclo, entao um unico ator
+    gera dezenas de "escalate (observe)" identicos. Medido num ator real: 25 de
+    31 eventos eram a mesma linha repetida, e os 2 alertas e os 2 achados de
+    API, que sao o que conta a historia, ficavam afogados no meio.
+
+    So junta o que esta grudado depois da ordenacao. Juntar ocorrencias
+    espalhadas no tempo daria um numero maior e destruiria a sequencia, que e a
+    unica coisa que esta linha do tempo tem de diferente das outras telas.
+    """
+    # A chave e so fonte mais titulo. O detalhe e o IP ficam de fora, e as duas
+    # exclusoes custaram uma tentativa cada:
+    #
+    # O detalhe, porque o motor de prevencao reescalona a cada ciclo com numero
+    # de evidencia diferente: 24 linhas "escalate (observe)" tinham 24 textos
+    # distintos e nenhuma colava. O que se repete e o fato, nao a redacao.
+    #
+    # O IP, porque o motor trata os dois enderecos do ator no mesmo ciclo e a
+    # lista sai alternando A, B, A, B. Nada fica grudado, e nada junta. Nesta
+    # tela o IP e detalhe secundario por definicao: todos pertencem ao mesmo
+    # ator, que e justamente o que a tela afirma.
+    def chave(e: dict[str, Any]):
+        return (e["fonte"], e["titulo"])
+
+    juntados: list[dict[str, Any]] = []
+    enderecos: list[set[str]] = []
+
+    for evento in eventos:
+        if juntados and chave(juntados[-1]) == chave(evento):
+            anterior = juntados[-1]
+            anterior["vezes"] += 1
+            # A lista vem do mais novo para o mais velho, entao o evento que
+            # chega agora e sempre o mais antigo do grupo. O detalhe que fica
+            # visivel e o do mais recente, que ja estava guardado.
+            anterior["desde"] = evento["ts"]
+            if evento["ip"]:
+                enderecos[-1].add(evento["ip"])
+            continue
+        juntados.append({**evento, "vezes": 1, "desde": None, "ips": 1})
+        enderecos.append({evento["ip"]} if evento["ip"] else set())
+
+    for linha, ips in zip(juntados, enderecos):
+        linha["ips"] = max(len(ips), 1)
+        if len(ips) > 1:
+            # Escolher um dos enderecos para exibir seria escolher mentir. A
+            # tela mostra a contagem no lugar.
+            linha["ip"] = None
+    return juntados
 
 
 @router.patch("/{ref}", response_model=AtorResumo)
@@ -423,7 +483,7 @@ async def separar_ip(
     )
     if not resultado.rowcount:
         await db.rollback()
-        raise HTTPException(status_code=404, detail="Esse IP nao esta neste ator")
+        raise HTTPException(status_code=404, detail="Esse IP não está neste ator")
     await db.commit()
 
 
@@ -450,7 +510,7 @@ async def bloquear_ator(
     if decisao.acao != "bloquear":
         raise HTTPException(
             status_code=422,
-            detail=f"O Veryon nao recomenda bloquear este ator. {decisao.porque}",
+            detail=f"O Veryon não recomenda bloquear este ator. {decisao.porque}",
         )
 
     ips = [
@@ -459,7 +519,7 @@ async def bloquear_ator(
         if not l["bloqueado"]
     ]
     if not ips:
-        return {"bloqueados": [], "detalhe": "Todos os IPs deste ator ja estao bloqueados"}
+        return {"bloqueados": [], "detalhe": "Todos os IPs deste ator já estão bloqueados"}
 
     bloqueados: list[str] = []
     recusados: list[dict[str, str]] = []

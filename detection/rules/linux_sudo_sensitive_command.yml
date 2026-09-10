@@ -1,9 +1,9 @@
-title: Uso de sudo para comando potencialmente sensivel
+title: Uso de sudo para comando potencialmente sensível
 id: d21874b0-a81a-48d6-afcd-4b162b2d631d
 status: stable
 description: >
-  Um comando executado via sudo referencia um binario comumente usado
-  para escalonamento de privilegio, persistencia ou pivo de rede.
+  Um comando executado via sudo referencia um binário comumente usado
+  para escalonamento de privilégio, persistência ou pivô de rede.
 logsource:
   category: authentication
   service: linux-auth

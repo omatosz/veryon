@@ -2,8 +2,8 @@
 Carregador e avaliador de regras Sigma.
 
 As regras sao validadas contra o schema oficial do Sigma via `pysigma`
-(pega erro de sintaxe/estrutura cedo). A avaliacao em si -- casar uma regra
-contra um evento -- e um interpretador proprio e enxuto: cobre o subconjunto
+(pega erro de sintaxe/estrutura cedo). A avaliacao em si, ou seja, casar uma
+regra contra um evento, e um interpretador proprio e enxuto: cobre o subconjunto
 do Sigma realmente usado neste projeto (um ou mais blocos de selecao
 combinados com and/or/not, modificadores contains/startswith/endswith),
 nao a especificacao completa (ex: regras de correlacao formais).
@@ -45,7 +45,7 @@ def load_rules(rules_dir):
 
 def flatten_event(row):
     """Achata uma linha de raw_events num dict simples: colunas no topo,
-    campos do payload prefixados com 'payload.' -- e assim que os campos
+    campos do payload prefixados com 'payload.', e assim que os campos
     sao referenciados nas regras (ex: payload.severity)."""
     flat = {
         "source": row["source"],

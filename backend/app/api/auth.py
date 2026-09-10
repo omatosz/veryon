@@ -24,19 +24,19 @@ async def login(
     # honeypot: campo escondido no formulario que só um bot preencheria
     # automaticamente; usuario real nunca ve nem toca nesse campo
     if website:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais invalidas")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas")
 
     result = await db.execute(select(User).where(User.username == form_data.username))
     user = result.scalar_one_or_none()
 
     if user is None or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais invalidas")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas")
 
     # Conta desligada nao recebe token. A mensagem e a mesma de senha errada
     # de proposito: dizer "sua conta foi desativada" confirma para quem esta
     # tentando que aquele nome existe.
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais invalidas")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas")
 
     return Token(access_token=create_access_token(user.username))
 

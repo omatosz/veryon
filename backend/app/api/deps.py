@@ -28,7 +28,7 @@ async def get_current_user(
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token invalido ou expirado",
+            detail="Token inválido ou expirado",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -40,7 +40,7 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token invalido ou expirado",
+            detail="Token inválido ou expirado",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -69,6 +69,6 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Esta acao e restrita a administradores",
+            detail="Esta ação é restrita a administradores",
         )
     return user

@@ -37,7 +37,7 @@ log = logging.getLogger("veryon.retention")
 TABELAS = ("api_requests", "raw_events", "alerts")
 
 RESUMO = {
-    "api_requests": "trafego de API, uma linha por requisicao",
+    "api_requests": "tráfego de API, uma linha por requisição",
     "raw_events": "evento cru do honeypot e dos coletores",
     "alerts": "alerta gerado pelas regras",
 }
@@ -49,14 +49,14 @@ POLITICAS = {
         "add": "add_compression_policy",
         "remove": "remove_compression_policy",
         "campo": "compress_after",
-        "rotulo": "compressao",
+        "rotulo": "compressão",
     },
     "drop": {
         "proc": "policy_retention",
         "add": "add_retention_policy",
         "remove": "remove_retention_policy",
         "campo": "drop_after",
-        "rotulo": "retencao",
+        "rotulo": "retenção",
     },
 }
 

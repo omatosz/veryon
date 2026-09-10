@@ -33,7 +33,7 @@ async def request_scan(
     if running is not None:
         raise HTTPException(
             status_code=409,
-            detail=f"Ja existe uma varredura {running.status} (#{running.id}). Espere ela terminar.",
+            detail=f"Já existe uma varredura {running.status} (#{running.id}). Espere ela terminar.",
         )
 
     job = ScanJob(requested_by=current_user, status="queued")
@@ -48,5 +48,5 @@ async def get_scan(job_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(ScanJob).where(ScanJob.id == job_id))
     job = result.scalars().first()
     if job is None:
-        raise HTTPException(status_code=404, detail="Varredura nao encontrada")
+        raise HTTPException(status_code=404, detail="Varredura não encontrada")
     return job

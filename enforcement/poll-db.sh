@@ -2,7 +2,7 @@
 # Le a tabela blocked_ips do Postgres a cada poucos segundos e escreve a
 # lista de IPs ativos num arquivo num volume compartilhado. Quem realmente
 # aplica o bloqueio e o enforce-netns.sh (roda no namespace de rede do
-# Cowrie) -- esse script aqui so tem acesso a rede "core" (onde fica o db),
+# Cowrie). Esse script aqui so tem acesso a rede "core" (onde fica o db),
 # nunca ao namespace do honeypot.
 set -euo pipefail
 

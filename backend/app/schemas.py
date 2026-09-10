@@ -177,7 +177,7 @@ class VulnerabilityUpdate(BaseModel):
             if not (self.justification or "").strip():
                 raise ValueError("aceitar o risco exige justificativa")
             if self.review_at is None:
-                raise ValueError("aceitar o risco exige uma data de revisao")
+                raise ValueError("aceitar o risco exige uma data de revisão")
         return self
 
 
@@ -395,7 +395,7 @@ class PolicyUpdate(BaseModel):
         # Trilho 4 tambem na porta de entrada: ligar uma politica de bloqueio
         # zerando o prazo faria ela nunca agir e ninguem entenderia por que.
         if self.mode == "enforce" and self.ttl_minutes is not None and self.ttl_minutes < 1:
-            raise ValueError("politica de bloqueio precisa de prazo pra entrar em vigor")
+            raise ValueError("política de bloqueio precisa de prazo pra entrar em vigor")
         return self
 
 

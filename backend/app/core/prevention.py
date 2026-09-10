@@ -133,7 +133,7 @@ async def _eval_api_score(db, params) -> list[Match]:
     return [
         Match(
             ip,
-            f"pontuacao {score} na analise de API",
+            f"pontuação {score} na análise de API",
             {"score": score, "severity": sev},
             "api_finding",
             fid,
@@ -152,7 +152,7 @@ async def _eval_api_signal(db, params) -> list[Match]:
         if ip not in vistos:
             vistos[ip] = Match(
                 ip,
-                f"sinal '{sinal}' na analise de API: {evidencia}",
+                f"sinal '{sinal}' na análise de API: {evidencia}",
                 {"score": score, "signal": sinal, "evidence": evidencia},
                 "api_finding",
                 fid,
@@ -184,7 +184,7 @@ async def _eval_alert_rule(db, params) -> list[Match]:
 async def _eval_repeat_offender(db, params) -> list[Match]:
     rows = (await db.execute(text(SQL_REPEAT), {"min_blocks": params.get("min_blocks", 2)})).all()
     return [
-        Match(ip, f"ja foi bloqueado e liberado {vezes} vez(es)", {"bloqueios": vezes})
+        Match(ip, f"já foi bloqueado e liberado {vezes} vez(es)", {"bloqueios": vezes})
         for ip, vezes in rows
     ]
 
@@ -196,7 +196,7 @@ async def _eval_threat_intel(db, params) -> list[Match]:
     return [
         Match(
             ip,
-            f"nota {score} no AbuseIPDB e alerta aberto no periodo",
+            f"nota {score} no AbuseIPDB e alerta aberto no período",
             {"abuseipdb_score": score, "pais": pais},
         )
         for ip, score, pais in rows

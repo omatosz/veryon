@@ -110,8 +110,8 @@ async def rodar_politicas(
     incluir_retencao: bool = Query(
         False,
         description=(
-            "Roda tambem a politica que apaga dado. Falso por padrao: "
-            "compressao e reversivel, apagar chunk nao e."
+            "Roda também a política que apaga dado. Falso por padrão: "
+            "compressão é reversível, apagar bloco não é."
         ),
     ),
 ) -> dict[str, Any]:

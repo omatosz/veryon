@@ -39,7 +39,7 @@ export function LoginPage() {
       let message = 'Não foi possível conectar ao servidor'
       if (err instanceof ApiError) {
         if (err.status === 401) message = 'Usuário ou senha incorretos'
-        else if (err.status === 429) message = 'Muitas tentativas — aguarde um minuto e tente de novo'
+        else if (err.status === 429) message = 'Muitas tentativas. Aguarde um minuto e tente de novo'
       }
       setErrorMessage(message)
       setFormState('error')

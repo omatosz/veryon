@@ -63,7 +63,7 @@ async def criar(body: UserCreate, db: AsyncSession = Depends(get_db)):
     ).scalar_one_or_none()
     # 409 e nao 422: o dado esta bem formado, o conflito e com o que ja existe.
     if existe is not None:
-        raise HTTPException(status_code=409, detail="Ja existe usuario com esse nome")
+        raise HTTPException(status_code=409, detail="Já existe usuário com esse nome")
 
     user = User(
         username=body.username,
@@ -87,7 +87,7 @@ async def atualizar(
         await db.execute(select(User).where(User.id == user_id))
     ).scalar_one_or_none()
     if alvo is None:
-        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
     campos = body.model_dump(exclude_unset=True)
     if not campos:
@@ -99,11 +99,11 @@ async def atualizar(
         if "role" in campos and campos["role"] != alvo.role:
             raise HTTPException(
                 status_code=422,
-                detail="Voce nao pode mudar o proprio papel. Peca a outro administrador",
+                detail="Você não pode mudar o próprio papel. Peça a outro administrador",
             )
         if campos.get("is_active") is False:
             raise HTTPException(
-                status_code=422, detail="Voce nao pode desligar a propria conta"
+                status_code=422, detail="Você não pode desligar a própria conta"
             )
 
     # Vale para qualquer alvo, inclusive outra pessoa: se este e o ultimo
@@ -116,7 +116,7 @@ async def atualizar(
     if perdendo_admin and await _admins_ativos(db) <= 1:
         raise HTTPException(
             status_code=422,
-            detail="Este e o ultimo administrador ativo. Promova outro antes",
+            detail="Este é o último administrador ativo. Promova outro antes",
         )
 
     if "password" in campos and campos["password"]:

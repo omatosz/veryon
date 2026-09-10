@@ -281,7 +281,7 @@ async def track_once() -> dict:
                         },
                     )
                 ).scalar()
-                detalhe = {"motivo": "primeira aparicao desse comportamento"}
+                detalhe = {"motivo": "primeira aparição desse comportamento"}
                 similaridade = 1.0
                 novos += 1
             else:

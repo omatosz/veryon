@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Le a lista de IPs bloqueados (escrita pelo poll-db.sh num volume
 # compartilhado) e aplica regras DROP no INPUT do proprio namespace de rede
-# do Cowrie, pras portas 2222/2223 -- este container roda com
+# do Cowrie, pras portas 2222/2223. Este container roda com
 # network_mode: service:cowrie, entao "INPUT" aqui e o INPUT do Cowrie.
 #
 # Isso existe porque DOCKER-USER/FORWARD nao ve trafego que chega via NAT
 # hairpin de porta publicada em localhost (o caminho que toda simulacao de
-# ataque local usa) -- bloquear dentro do proprio namespace do container
+# ataque local usa). Bloquear dentro do proprio namespace do container
 # evita esse problema, porque o pacote passa pelo INPUT dele de qualquer jeito
 # antes de chegar no processo que esta escutando a porta.
 set -euo pipefail

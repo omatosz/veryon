@@ -3,7 +3,7 @@ id: 985c9844-0656-4a43-bcee-420f13eaf2d4
 status: stable
 description: >
   Um atacante (real ou simulado) executou um comando de shell dentro do
-  honeypot Cowrie, apos ter feito login.
+  honeypot Cowrie, após ter feito login.
 logsource:
   category: honeypot
   service: cowrie

@@ -46,7 +46,7 @@ async def update_policy(
         await db.execute(select(PreventionPolicy).where(PreventionPolicy.id == policy_id))
     ).scalars().first()
     if policy is None:
-        raise HTTPException(status_code=404, detail="Politica nao encontrada")
+        raise HTTPException(status_code=404, detail="Política não encontrada")
 
     if body.ttl_minutes is not None:
         policy.ttl_minutes = body.ttl_minutes
@@ -60,8 +60,8 @@ async def update_policy(
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    "Politica de bloqueio precisa de prazo antes de entrar em vigor. "
-                    "Bloqueio automatico sem data de saida vira dano permanente."
+                    "Política de bloqueio precisa de prazo antes de entrar em vigor. "
+                    "Bloqueio automático sem data de saída vira dano permanente."
                 ),
             )
         policy.mode = body.mode
@@ -83,7 +83,7 @@ async def simulate_policy(policy_id: int, db: AsyncSession = Depends(get_db)):
         await db.execute(select(PreventionPolicy.id).where(PreventionPolicy.id == policy_id))
     ).first()
     if exists is None:
-        raise HTTPException(status_code=404, detail="Politica nao encontrada")
+        raise HTTPException(status_code=404, detail="Política não encontrada")
     return await prevention.evaluate_once(dry_run_policy_id=policy_id)
 
 
@@ -117,11 +117,11 @@ async def undo_action(
         await db.execute(select(PreventionAction).where(PreventionAction.id == action_id))
     ).scalars().first()
     if action is None:
-        raise HTTPException(status_code=404, detail="Acao nao encontrada")
+        raise HTTPException(status_code=404, detail="Ação não encontrada")
     if action.status != "applied":
         raise HTTPException(
             status_code=409,
-            detail=f"So da pra desfazer acao aplicada. Essa esta como '{action.status}'.",
+            detail=f"Só dá pra desfazer ação aplicada. Essa está como '{action.status}'.",
         )
 
     if action.action_type == "block_ip" and action.blocked_ip_id:
