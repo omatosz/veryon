@@ -38,10 +38,11 @@ INSERT_REQUESTS = text(
     """
     INSERT INTO api_requests
         (ts, source, client_ip, method, path, route, status_code,
-         duration_ms, response_bytes, user_agent, query, flags)
+         duration_ms, response_bytes, user_agent, header_sig, query, flags)
     VALUES
         (:ts, :source, :client_ip, :method, :path, :route, :status_code,
-         :duration_ms, :response_bytes, :user_agent, :query, CAST(:flags AS jsonb))
+         :duration_ms, :response_bytes, :user_agent, :header_sig, :query,
+         CAST(:flags AS jsonb))
     """
 )
 
@@ -133,6 +134,10 @@ async def _write(batch: list[dict]) -> None:
         {
             **rec,
             "flags": json.dumps(rec.get("flags") or {}),
+            # Nem toda origem manda assinatura de cabecalho: log de acesso de
+            # nginx so tem se o cliente configurou o formato estendido. Fixar a
+            # chave aqui evita que a origem mais pobre quebre o lote inteiro.
+            "header_sig": rec.get("header_sig"),
         }
         for rec in batch
     ]

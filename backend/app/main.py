@@ -21,7 +21,7 @@ from app.api import (
     stats,
     vulnerabilities,
 )
-from app.core import api_analyzer, api_traffic, blocklist, prevention
+from app.core import actor_tracker, api_analyzer, api_traffic, blocklist, prevention
 from app.core.cache import redis_client
 from app.core.config import settings
 from app.core.limiter import limiter
@@ -102,6 +102,9 @@ async def on_startup():
         asyncio.create_task(api_traffic.flush_loop()),
         asyncio.create_task(api_analyzer.analyze_loop()),
         asyncio.create_task(prevention.evaluate_loop()),
+        # Roda depois do analisador de proposito: so vira ator quem ja virou
+        # achado, e quem decide isso e o analisador.
+        asyncio.create_task(actor_tracker.track_loop()),
     ]
 
 

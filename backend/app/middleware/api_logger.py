@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.core import api_signals, api_traffic
+from app.core import actor_fingerprint, api_signals, api_traffic
 from app.middleware.blocklist import client_ip
 
 
@@ -62,8 +62,14 @@ class APILoggerMiddleware:
         template = getattr(matched, "path", None)
         route = template if template else api_signals.normalize_route(path)
 
-        headers = dict(scope.get("headers", []))
-        agent = headers.get(b"user-agent", b"").decode("latin-1")[:300] or None
+        # A lista crua vem na ordem em que o cliente montou a requisicao, e e
+        # essa ordem que identifica a ferramenta. Converter pra dict antes de
+        # extrair a assinatura perderia justamente a parte que interessa.
+        brutos = scope.get("headers", [])
+        nomes = [nome.decode("latin-1") for nome, _ in brutos]
+        header_sig = actor_fingerprint.assinatura_de_cabecalhos(nomes)[:600] or None
+
+        agent = dict(brutos).get(b"user-agent", b"").decode("latin-1")[:300] or None
 
         api_traffic.enqueue(
             {
@@ -77,6 +83,7 @@ class APILoggerMiddleware:
                 "duration_ms": int((time.perf_counter() - started) * 1000),
                 "response_bytes": size,
                 "user_agent": agent,
+                "header_sig": header_sig,
                 "query": query,
                 "flags": {"injection": api_signals.detect_injection(path, query)},
             }
