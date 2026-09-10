@@ -4,9 +4,25 @@ Este guia mostra como atacar o Veryon e ver cada ataque atravessar o sistema at�
 virar alerta e resposta no painel. Tudo roda contra o seu próprio laboratório, na
 sua máquina, em containers isolados. Nada aqui toca máquina de terceiro.
 
-Antes de começar, tenha o Veryon no ar (`docker compose up -d --build`) e o painel
-aberto em `http://localhost:5173`. Deixe a tela de **Alertas** aberta num canto: é
-onde quase tudo aparece.
+Antes de começar, tenha o Veryon no ar e o painel aberto em `http://localhost:5173`.
+Deixe a tela de **Alertas** aberta num canto: é onde quase tudo aparece.
+
+Use `--build` só na primeira vez ou quando o código mudar:
+
+```bash
+docker compose up -d --build
+```
+
+Do dia a dia em diante, pra subir o que estiver parado sem reconstruir nada:
+
+```bash
+docker compose up -d
+```
+
+Não dê `--build` por hábito antes de cada ataque: reconstruir recria o honeypot, gera
+uma chave de host SSH nova e deixa portas presas pra trás — as três causas mais comuns
+de "o ataque roda mas não aparece no painel". Se cair nisso, veja **Quando o ataque não
+aparece** no fim deste guia.
 
 Os endereços que os ataques usam:
 
@@ -34,8 +50,14 @@ O ataque mais simples e o melhor pra confirmar que o pipeline inteiro funciona.
 **Terminal:** qualquer um com cliente SSH (o próprio PowerShell do Windows já tem).
 
 ```bash
-ssh -p 2222 -o StrictHostKeyChecking=no root@localhost
+ssh -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost
 ```
+
+O `UserKnownHostsFile=/dev/null` faz o login não gravar nem ler a chave de host do
+honeypot, então ele não quebra quando o container é recriado e a chave muda (no
+PowerShell do Windows, troque `/dev/null` por `NUL`). Se você já pegou o erro
+`REMOTE HOST IDENTIFICATION HAS CHANGED`, limpe a entrada velha uma vez com
+`ssh-keygen -R "[localhost]:2222"`.
 
 Quando pedir senha, digite qualquer coisa (`123456`, `senha`, o que for). O honeypot
 aceita e te joga num shell falso. Digite alguns comandos pra deixar rastro:
@@ -285,3 +307,40 @@ Pra uma demonstração de ponta a ponta, nesta ordem:
 
 Cada passo deixa rastro visível no painel. É o pipeline inteiro de um SOC, do
 primeiro pacote até a resposta, rodando na sua máquina.
+
+---
+
+## Quando o ataque não aparece
+
+O ataque roda, o terminal responde, mas nada surge nos Alertas nem nos Eventos. Quase
+sempre é um destes três, e os três nascem do hábito de reconstruir a stack toda hora.
+
+**1. Porta do honeypot presa num container morto.** No Docker Desktop do Windows, depois
+que a máquina dorme ou o Docker se atualiza, o encaminhamento da porta `2222` pode ficar
+apontando pra um honeypot já derrubado. O ataque conecta, recebe o shell falso, mas o log
+vai pro container morto e o Veryon atual não lê aquilo. Para confirmar, pare o honeypot e
+tente conectar mesmo assim:
+
+```bash
+docker compose stop cowrie
+ssh -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost
+```
+
+Se ainda responder com o honeypot parado, há um processo fantasma segurando a porta. O
+conserto é reiniciar o Docker Desktop de verdade (bandeja → Quit → abrir de novo); um
+`docker compose down` sozinho não solta o encaminhamento. Pelo terminal, o equivalente é
+`wsl --shutdown` seguido de reabrir o Docker Desktop. Depois `docker compose up -d`.
+
+**2. `REMOTE HOST IDENTIFICATION HAS CHANGED`.** Cada recriação do honeypot gera uma
+chave de host nova; o cliente SSH guardou a antiga e recusa. `StrictHostKeyChecking=no`
+não cobre esse caso. Use o comando de login que não toca no `known_hosts` (com
+`UserKnownHostsFile=/dev/null`, ou `NUL` no PowerShell), ou limpe a entrada velha uma vez
+com `ssh-keygen -R "[localhost]:2222"`.
+
+**3. Relógios fora de sincronia.** Se o host e os containers ficarem com horas muito
+diferentes (também comum depois que a máquina dorme), eventos entram com data no passado e
+somem das telas por janela de tempo. `wsl --shutdown` e reabrir o Docker Desktop realinha.
+
+Se nada disso for o caso, confirme que a cadeia está no ar e que o coletor está lendo o
+honeypot: `docker compose ps` e `docker compose logs collector --tail 20` (deve aparecer
+`collector iniciado, lendo .../cowrie.json` e, após um login, linhas de evento gravado).
