@@ -41,5 +41,5 @@ async def get_event(event_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(RawEvent).where(RawEvent.id == event_id))
     event = result.scalars().first()
     if event is None:
-        raise HTTPException(status_code=404, detail="Evento nao encontrado")
+        raise HTTPException(status_code=404, detail="Evento não encontrado")
     return event

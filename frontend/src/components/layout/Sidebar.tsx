@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, NavLink } from 'react-router-dom'
-import { Activity, Bug, FileText, LayoutGrid, LogOut, Radar, ShieldAlert, ShieldCheck, Telescope, X } from 'lucide-react'
+import { Activity, Bell, Bug, FileText, HardDrive, LayoutGrid, LogOut, Radar, ShieldAlert, ShieldCheck, Telescope, Users, Fingerprint, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { getApiSummary, getPreventionSummary, getVulnSummary, listAlerts } from '@/lib/api'
@@ -16,7 +16,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const [openVulnCount, setOpenVulnCount] = useState<number | null>(null)
   const [openApiCount, setOpenApiCount] = useState<number | null>(null)
   const [queueCount, setQueueCount] = useState<number | null>(null)
-  const { logout } = useAuth()
+  const { logout, isAdmin, user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -69,14 +69,28 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       items: [
         { to: '/vulnerabilities', label: 'Vulnerabilidades', icon: Bug, badge: openVulnCount },
         { to: '/api-analysis', label: 'Análise de API', icon: Radar, badge: openApiCount },
+        { to: '/actors', label: 'Atores', icon: Fingerprint },
       ],
     },
     {
       label: 'Resposta',
-      items: [{ to: '/prevention', label: 'Prevenção', icon: ShieldCheck, badge: queueCount }],
+      items: [
+        { to: '/prevention', label: 'Prevenção', icon: ShieldCheck, badge: queueCount },
+        { to: '/notifications', label: 'Notificações', icon: Bell },
+      ],
     },
     { label: 'Inteligência', items: [{ to: '/threat-intel', label: 'Threat Intel', icon: Telescope }] },
-    { label: 'Operação', items: [{ to: '/reports', label: 'Relatórios', icon: FileText }] },
+    {
+      label: 'Operação',
+      items: [
+        { to: '/reports', label: 'Relatórios', icon: FileText },
+        { to: '/retention', label: 'Armazenamento', icon: HardDrive },
+        // Só para admin. Quem sao os usuarios e com que poder cada um entra e
+        // informacao de administracao, e a API recusa a listagem para
+        // analista: deixar o item no menu so daria erro de tela.
+        ...(isAdmin ? [{ to: '/users', label: 'Usuários', icon: Users }] : []),
+      ],
+    },
   ]
 
   function handleLogout() {
@@ -146,12 +160,19 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <div className="grow" />
 
         <div className="flex items-center gap-2.5 border-t border-border px-2 py-2.5">
-          <div className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-primary/14 font-heading text-xs font-semibold text-primary">
-            AD
+          {/* Nome e papel vem do servidor. Antes isto era texto fixo, o que
+              passou a ser mentira no instante em que existiu mais de um
+              usuario: todo mundo via "admin" no rodape. */}
+          <div className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-primary/14 font-heading text-xs font-semibold uppercase text-primary">
+            {(user?.username ?? '?').slice(0, 2)}
           </div>
-          <div className="flex flex-col leading-tight">
-            <span className="text-[12.5px] font-medium text-foreground">admin</span>
-            <span className="text-[10.5px] text-muted-foreground">Analista SOC</span>
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span className="truncate text-[12.5px] font-medium text-foreground">
+              {user?.username ?? 'carregando'}
+            </span>
+            <span className="text-[10.5px] text-muted-foreground">
+              {isAdmin ? 'Administrador' : 'Analista'}
+            </span>
           </div>
           <button
             type="button"

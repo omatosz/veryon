@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import current_username, get_current_user
 from app.core import api_analyzer, api_signals, api_traffic
 from app.db.models import APIEndpoint, APIFinding, APIRequest
 from app.db.session import get_db
@@ -114,7 +114,7 @@ async def finding_requests(
         await db.execute(select(APIFinding).where(APIFinding.id == finding_id))
     ).scalars().first()
     if finding is None:
-        raise HTTPException(status_code=404, detail="Achado nao encontrado")
+        raise HTTPException(status_code=404, detail="Achado não encontrado")
 
     stmt = (
         select(APIRequest)
@@ -130,13 +130,13 @@ async def update_finding(
     finding_id: int,
     body: APIFindingUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     finding = (
         await db.execute(select(APIFinding).where(APIFinding.id == finding_id))
     ).scalars().first()
     if finding is None:
-        raise HTTPException(status_code=404, detail="Achado nao encontrado")
+        raise HTTPException(status_code=404, detail="Achado não encontrado")
 
     finding.status = body.status
     finding.note = body.note
@@ -179,7 +179,7 @@ async def mark_documented(endpoint_id: int, db: AsyncSession = Depends(get_db)):
         await db.execute(select(APIEndpoint).where(APIEndpoint.id == endpoint_id))
     ).scalars().first()
     if endpoint is None:
-        raise HTTPException(status_code=404, detail="Rota nao encontrada")
+        raise HTTPException(status_code=404, detail="Rota não encontrada")
     endpoint.is_documented = True
     await db.commit()
     await db.refresh(endpoint)

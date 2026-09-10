@@ -119,7 +119,7 @@ def newest_record_id():
 
 def poll_new_events(last_record_id):
     """Varre o log de tras pra frente (mais recente primeiro) e para assim que
-    encontra um record_id ja processado -- evita re-escanear o log inteiro
+    encontra um record_id ja processado, o que evita re-escanear o log inteiro
     a cada ciclo."""
     handle = win32evtlog.EvtQuery(
         CHANNEL,

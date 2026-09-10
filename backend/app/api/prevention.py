@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import current_username, get_current_user, require_admin
 from app.core import blocklist as blocklist_cache, prevention
 from app.db.models import BlockedIP, PreventionAction, PreventionPolicy
 from app.db.session import get_db
@@ -30,12 +30,12 @@ async def list_policies(db: AsyncSession = Depends(get_db)):
     return (await db.execute(stmt)).scalars().all()
 
 
-@router.patch("/policies/{policy_id}", response_model=PolicyOut)
+@router.patch("/policies/{policy_id}", response_model=PolicyOut, dependencies=[Depends(require_admin)])
 async def update_policy(
     policy_id: int,
     body: PolicyUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     """Liga, desliga ou muda o modo de uma politica.
 
@@ -46,7 +46,7 @@ async def update_policy(
         await db.execute(select(PreventionPolicy).where(PreventionPolicy.id == policy_id))
     ).scalars().first()
     if policy is None:
-        raise HTTPException(status_code=404, detail="Politica nao encontrada")
+        raise HTTPException(status_code=404, detail="Política não encontrada")
 
     if body.ttl_minutes is not None:
         policy.ttl_minutes = body.ttl_minutes
@@ -60,8 +60,8 @@ async def update_policy(
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    "Politica de bloqueio precisa de prazo antes de entrar em vigor. "
-                    "Bloqueio automatico sem data de saida vira dano permanente."
+                    "Política de bloqueio precisa de prazo antes de entrar em vigor. "
+                    "Bloqueio automático sem data de saída vira dano permanente."
                 ),
             )
         policy.mode = body.mode
@@ -83,7 +83,7 @@ async def simulate_policy(policy_id: int, db: AsyncSession = Depends(get_db)):
         await db.execute(select(PreventionPolicy.id).where(PreventionPolicy.id == policy_id))
     ).first()
     if exists is None:
-        raise HTTPException(status_code=404, detail="Politica nao encontrada")
+        raise HTTPException(status_code=404, detail="Política não encontrada")
     return await prevention.evaluate_once(dry_run_policy_id=policy_id)
 
 
@@ -103,11 +103,11 @@ async def list_actions(
     return (await db.execute(stmt)).scalars().all()
 
 
-@router.post("/actions/{action_id}/undo", response_model=PreventionActionOut)
+@router.post("/actions/{action_id}/undo", response_model=PreventionActionOut, dependencies=[Depends(require_admin)])
 async def undo_action(
     action_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     """Trilho 7: desfaz uma acao aplicada.
 
@@ -117,11 +117,11 @@ async def undo_action(
         await db.execute(select(PreventionAction).where(PreventionAction.id == action_id))
     ).scalars().first()
     if action is None:
-        raise HTTPException(status_code=404, detail="Acao nao encontrada")
+        raise HTTPException(status_code=404, detail="Ação não encontrada")
     if action.status != "applied":
         raise HTTPException(
             status_code=409,
-            detail=f"So da pra desfazer acao aplicada. Essa esta como '{action.status}'.",
+            detail=f"Só dá pra desfazer ação aplicada. Essa está como '{action.status}'.",
         )
 
     if action.action_type == "block_ip" and action.blocked_ip_id:

@@ -106,6 +106,11 @@ export interface ApiAlert {
   source_ip: string | null
   description: string | null
   status: string
+  /** Os três só fazem sentido juntos: por que mudou, quem escreveu e quando.
+   *  Nulos no que foi triado antes de existir onde escrever. */
+  triage_note: string | null
+  triaged_by: string | null
+  triaged_at: string | null
   payload: Record<string, unknown>
 }
 
@@ -117,10 +122,13 @@ export function listAlerts(params: { level?: string; status?: string; limit?: nu
   return request<ApiAlert[]>(`/alerts?${qs}`)
 }
 
-export function updateAlertStatus(id: number, status: string) {
+/** Muda o estado do alerta. A nota é obrigatória ao fechar: sem ela a API
+ *  responde 422, porque fechar sem motivo apaga a única coisa que o próximo
+ *  analista precisa saber. */
+export function updateAlertStatus(id: number, status: string, note?: string) {
   return request<ApiAlert>(`/alerts/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(note ? { status, note } : { status }),
   })
 }
 
@@ -573,4 +581,277 @@ export interface ApiGeoSummary {
 
 export function getGeo(days = 7) {
   return request<ApiGeoSummary>(`/stats/geo?days=${days}`)
+}
+
+// --- Notificacoes ---
+
+export type NotifyKind = 'email' | 'discord' | 'slack' | 'teams' | 'generic'
+export type NotifyLevel = 'informational' | 'low' | 'medium' | 'high' | 'critical'
+
+export interface ApiNotifyChannel {
+  id: number
+  name: string
+  kind: NotifyKind
+  target: string
+  /** Abaixo disto o alerta nem chega neste canal. */
+  min_level: NotifyLevel
+  /** A partir daqui interrompe: sai sozinho. Entre os dois, espera o resumo. */
+  immediate_level: NotifyLevel
+  enabled: boolean
+  last_digest_at: string | null
+}
+
+export interface ApiNotifyChannelInput {
+  name: string
+  kind: NotifyKind
+  target: string
+  min_level: NotifyLevel
+  immediate_level: NotifyLevel
+  enabled: boolean
+}
+
+export interface ApiNotifyQueueItem {
+  id: number
+  canal: string
+  kind: NotifyKind
+  group_key: string
+  status: 'pending' | 'sent' | 'failed' | 'suppressed' | 'digest'
+  level: NotifyLevel
+  title: string
+  alert_count: number
+  attempts: number
+  last_error: string | null
+  created_at: string
+  sent_at: string | null
+  next_attempt_at: string | null
+}
+
+export function listNotifyChannels() {
+  return request<ApiNotifyChannel[]>('/notifications/channels')
+}
+
+export function createNotifyChannel(body: ApiNotifyChannelInput) {
+  return request<ApiNotifyChannel>('/notifications/channels', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateNotifyChannel(id: number, body: Partial<ApiNotifyChannelInput>) {
+  return request<ApiNotifyChannel>(`/notifications/channels/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteNotifyChannel(id: number) {
+  return request<void>(`/notifications/channels/${id}`, { method: 'DELETE' })
+}
+
+/** Manda uma mensagem agora, fora da fila. Responde 200 mesmo quando o destino
+ *  falha: o `ok` diz se chegou, e o `detalhe` traz o erro pra corrigir. */
+export function testNotifyChannel(id: number) {
+  return request<{ ok: boolean; detalhe: string }>(
+    `/notifications/channels/${id}/test`,
+    { method: 'POST' },
+  )
+}
+
+export function listNotifyQueue(status?: string) {
+  const q = status ? `?status=${encodeURIComponent(status)}` : ''
+  return request<ApiNotifyQueueItem[]>(`/notifications/queue${q}`)
+}
+
+export function runNotifyDigest() {
+  return request<{ resumos_enviados: number }>('/notifications/digest/run', {
+    method: 'POST',
+  })
+}
+
+// --- Retencao e compressao ---
+
+export interface ApiRetentionPolicy {
+  /** Prazo da politica que existe no banco. null quer dizer que nao existe. */
+  dias_no_banco: number | null
+  /** Prazo que o .env pede. null quer dizer desligada na configuracao. */
+  dias_no_env: number | null
+  /** false = banco e .env discordam. Ou alguem mexeu no banco na mao, ou a
+   *  reconciliacao falhou naquela tabela. */
+  em_dia: boolean
+  proxima_execucao: string | null
+  ultima_execucao: string | null
+  falhas: number | null
+}
+
+export interface ApiRetentionTable {
+  tabela: string
+  resumo: string
+  linhas: number
+  bytes: number
+  chunks: number
+  chunks_comprimidos: number
+  /** Os dois campos abaixo falam so dos chunks ja comprimidos, entao a
+   *  economia e medida e nao projetada. Ficam nulos enquanto nada comprimiu. */
+  bytes_antes_da_compressao: number | null
+  bytes_depois_da_compressao: number | null
+  economia: number | null
+  dado_mais_antigo: string | null
+  politicas: { compress: ApiRetentionPolicy; drop: ApiRetentionPolicy }
+}
+
+export interface ApiRetentionStatus {
+  ligada: boolean
+  tabelas: ApiRetentionTable[]
+  bytes_total: number
+  bytes_economizados: number
+}
+
+export function getRetentionStatus() {
+  return request<ApiRetentionStatus>('/retention/status')
+}
+
+/** Reconcilia as politicas do banco com o .env, igual ao que roda no boot.
+ *  Rodar duas vezes seguidas devolve `mudancas` vazio. */
+export function applyRetention() {
+  return request<{ ligada: boolean; mudancas: string[]; falhas: string[] }>(
+    '/retention/apply',
+    { method: 'POST' },
+  )
+}
+
+/** Antecipa a proxima execucao das politicas. So a compressao, a nao ser que
+ *  `incluirRetencao` seja pedido: compressao volta atras, chunk apagado nao. */
+export function runRetention(incluirRetencao = false) {
+  return request<{
+    execucoes: { tabela: string; politica: string; ok: boolean; detalhe: string }[]
+  }>(`/retention/run?incluir_retencao=${incluirRetencao}`, { method: 'POST' })
+}
+
+
+// --- Usuários e papéis ---
+
+export type UserRole = 'admin' | 'analyst'
+
+export interface ApiUser {
+  id: number
+  username: string
+  role: UserRole
+  is_active: boolean
+  created_at: string
+}
+
+/** Quem está logado e com que papel. O papel vem daqui e não do token, então
+ *  perder o admin vale na próxima carga da página, não daqui a uma hora. */
+export function getMe() {
+  return request<ApiUser>('/auth/me')
+}
+
+export function listUsers() {
+  return request<ApiUser[]>('/users')
+}
+
+export function createUser(body: { username: string; password: string; role: UserRole }) {
+  return request<ApiUser>('/users', { method: 'POST', body: JSON.stringify(body) })
+}
+
+/** Manda só o que muda. Trocar a própria senha é permitido; mudar o próprio
+ *  papel ou desligar a própria conta é recusado com 422. */
+export function updateUser(
+  id: number,
+  body: Partial<{ role: UserRole; is_active: boolean; password: string }>,
+) {
+  return request<ApiUser>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+// --- Rastreamento de ator ---
+
+/** O semáforo. A tela pinta a partir daqui e nunca a partir do score: a regra
+ *  vive num lugar só, no backend. */
+export interface ApiActorDecision {
+  acao: 'bloquear' | 'investigar' | 'observar'
+  porque: string
+}
+
+export interface ApiActor {
+  ref: string
+  confidence: 'low' | 'medium' | 'high'
+  distinctiveness: number
+  ip_count: number
+  request_count: number
+  max_score: number
+  status: string
+  first_seen: string
+  last_seen: string
+  note: string | null
+  agente: string | null
+  decisao: ApiActorDecision
+}
+
+export interface ApiActorIP {
+  client_ip: string
+  first_seen: string
+  last_seen: string
+  request_count: number
+  /** Com quanta semelhança este IP entrou no ator, e a quebra por traço. É a
+   *  evidência que permite discordar da junção com dado na mão. */
+  similarity: number
+  match_detail: Record<string, unknown> | null
+  manual: boolean
+  bloqueado: boolean
+}
+
+export interface ApiActorDetail extends ApiActor {
+  traits: Record<string, unknown>
+  ips: ApiActorIP[]
+}
+
+export interface ApiActorEvent {
+  /** Quando aconteceu pela última vez. */
+  ts: string
+  fonte: 'honeypot' | 'alerta' | 'api' | 'resposta'
+  titulo: string
+  detalhe: string | null
+  nivel: string | null
+  ip: string | null
+  /** Quantas vezes seguidas a mesma coisa aconteceu. `desde` só vem
+   *  preenchido quando `vezes` é maior que 1. */
+  vezes: number
+  desde: string | null
+  /** De quantos endereços veio o grupo. Com mais de um, `ip` vem nulo. */
+  ips: number
+}
+
+export function listActors(params: { status?: string; acao?: string } = {}) {
+  const qs = new URLSearchParams()
+  if (params.status) qs.set('status', params.status)
+  if (params.acao) qs.set('acao', params.acao)
+  const q = qs.toString()
+  return request<ApiActor[]>(`/actors${q ? `?${q}` : ''}`)
+}
+
+export function getActor(ref: string) {
+  return request<ApiActorDetail>(`/actors/${ref}`)
+}
+
+export function getActorTimeline(ref: string, dias = 30) {
+  return request<ApiActorEvent[]>(`/actors/${ref}/timeline?dias=${dias}`)
+}
+
+export function updateActor(ref: string, body: { note?: string; status?: string }) {
+  return request<ApiActor>(`/actors/${ref}`, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+/** Tira um IP do ator porque o analista discordou da junção. O laço não refaz
+ *  a ligação depois disso. */
+export function detachActorIp(ref: string, ip: string) {
+  return request<void>(`/actors/${ref}/ips/${encodeURIComponent(ip)}/detach`, { method: 'POST' })
+}
+
+/** Bloqueia todos os IPs do ator de uma vez. Só admin, e a API recusa com 422
+ *  quando o próprio Veryon não recomenda bloquear. */
+export function blockActor(ref: string) {
+  return request<{ bloqueados: string[]; recusados: { ip: string; motivo: string }[]; detalhe?: string }>(
+    `/actors/${ref}/block`,
+    { method: 'POST' },
+  )
 }

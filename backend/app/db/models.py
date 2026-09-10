@@ -1,6 +1,18 @@
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Numeric, String, Text, func, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -36,6 +48,12 @@ class Alert(Base):
     source_ip: Mapped[str | None] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="open")
+    # Os tres campos abaixo so fazem sentido juntos: por que o alerta mudou de
+    # estado, quem escreveu e quando. Ficam nulos no que foi triado antes de
+    # existir onde escrever.
+    triage_note: Mapped[str | None] = mapped_column(Text)
+    triaged_by: Mapped[str | None] = mapped_column(String(80))
+    triaged_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
 
@@ -61,6 +79,12 @@ class User(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    # 'admin' ou 'analyst'. Analista le tudo e tria; admin faz o que muda o
+    # comportamento do sistema ou apaga dado.
+    role: Mapped[str] = mapped_column(String(16), nullable=False, server_default="analyst")
+    # Desligar em vez de apagar. Os campos de auditoria espalhados pelo banco
+    # guardam o nome de quem fez, e nome sem dono e pior que conta desligada.
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -160,6 +184,9 @@ class APIRequest(Base):
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     response_bytes: Mapped[int | None] = mapped_column(Integer)
     user_agent: Mapped[str | None] = mapped_column(String(300))
+    # Nome dos cabecalhos na ordem, sem valor nenhum. E o que sustenta a
+    # identidade de ator quando o IP muda.
+    header_sig: Mapped[str | None] = mapped_column(String(600))
     query: Mapped[str | None] = mapped_column(String(500))
     flags: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
 
@@ -262,3 +289,48 @@ class APIFinding(Base):
     note: Mapped[str | None] = mapped_column(Text)
     muted_until: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))
     alert_id: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class Actor(Base):
+    """Quem esta atacando, quando o IP nao serve mais como identidade.
+
+    Nao afirma pessoa: afirma mesma ferramenta com o mesmo padrao. A diferenca
+    esta no campo confidence, e a tela precisa respeita-la."""
+
+    __tablename__ = "actors"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ref: Mapped[str] = mapped_column(String(12), nullable=False, unique=True)
+    traits: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    confidence: Mapped[str] = mapped_column(String, nullable=False, server_default="low")
+    distinctiveness: Mapped[float] = mapped_column(Float, nullable=False, server_default="0")
+    ip_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    request_count: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
+    max_score: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    first_seen: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, server_default="active")
+    note: Mapped[str | None] = mapped_column(Text)
+    updated_by: Mapped[str | None] = mapped_column(String)
+
+
+class ActorIP(Base):
+    """Por onde um ator apareceu, e com que semelhanca entrou.
+
+    match_detail guarda a quebra por traco de proposito: fusao que o analista
+    nao consegue contestar com dado na mao e fusao que ele vai ignorar."""
+
+    __tablename__ = "actor_ips"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # Anulavel por causa do vinculo orfao: quando o analista separa um IP do
+    # ator, a linha fica sem dono e com manual ligado. E o tumulo que impede o
+    # laco de refazer a juncao que a pessoa acabou de desfazer.
+    actor_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("actors.id", ondelete="CASCADE"))
+    client_ip: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    first_seen: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
+    request_count: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
+    similarity: Mapped[float] = mapped_column(Float, nullable=False, server_default="1")
+    match_detail: Mapped[dict | None] = mapped_column(JSONB)
+    manual: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))

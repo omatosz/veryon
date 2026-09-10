@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import current_username, get_current_user, require_admin
 from app.core import blocklist as blocklist_cache
 from app.db.models import BlockedIP, IPAllowlist
 from app.db.session import get_db
@@ -30,7 +30,7 @@ async def guard_target(request: Request, db: AsyncSession, target: str) -> str:
     de IPs. Devolve o alvo normalizado."""
     exact, net = blocklist_cache.parse_target(target)
     if exact is None and net is None:
-        raise HTTPException(status_code=422, detail=f"'{target}' nao e um IP nem uma faixa CIDR valida")
+        raise HTTPException(status_code=422, detail=f"'{target}' não é um IP nem uma faixa CIDR válida")
     normalized = exact or str(net)
 
     # Trava contra se trancar pra fora: bloquear o proprio IP derrubaria a
@@ -40,12 +40,12 @@ async def guard_target(request: Request, db: AsyncSession, target: str) -> str:
         if normalized == own:
             raise HTTPException(
                 status_code=422,
-                detail=f"{own} e o seu proprio IP. Bloquear ele te tirava do painel.",
+                detail=f"{own} é o seu próprio IP. Bloquear ele te tirava do painel.",
             )
         if net is not None and _covers(net, own):
             raise HTTPException(
                 status_code=422,
-                detail=f"A faixa {normalized} inclui o seu proprio IP ({own}). Isso te tirava do painel.",
+                detail=f"A faixa {normalized} inclui o seu próprio IP ({own}). Isso te tirava do painel.",
             )
 
     for entry in (await db.execute(select(IPAllowlist.cidr))).scalars().all():
@@ -60,7 +60,7 @@ async def guard_target(request: Request, db: AsyncSession, target: str) -> str:
         select(BlockedIP).where(BlockedIP.ip == normalized, BlockedIP.unblocked_at.is_(None))
     )
     if existing.scalars().first() is not None:
-        raise HTTPException(status_code=409, detail=f"{normalized} ja esta bloqueado")
+        raise HTTPException(status_code=409, detail=f"{normalized} já está bloqueado")
 
     return normalized
 
@@ -73,12 +73,12 @@ async def list_blocklist(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
-@router.post("", response_model=BlockedIPOut, status_code=201)
+@router.post("", response_model=BlockedIPOut, status_code=201, dependencies=[Depends(require_admin)])
 async def block_ip(
     body: BlockIPIn,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     normalized = await guard_target(request, db, body.ip)
 
@@ -107,15 +107,15 @@ async def list_allowlist(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
-@router.post("/allowlist", response_model=AllowlistOut, status_code=201)
+@router.post("/allowlist", response_model=AllowlistOut, status_code=201, dependencies=[Depends(require_admin)])
 async def add_allowlist(
     body: AllowlistIn,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     exact, net = blocklist_cache.parse_target(body.cidr)
     if exact is None and net is None:
-        raise HTTPException(status_code=422, detail=f"'{body.cidr}' nao e um IP nem uma faixa CIDR valida")
+        raise HTTPException(status_code=422, detail=f"'{body.cidr}' não é um IP nem uma faixa CIDR válida")
     normalized = exact or str(net)
 
     entry = IPAllowlist(cidr=normalized, reason=body.reason, added_by=current_user)
@@ -124,33 +124,33 @@ async def add_allowlist(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=409, detail=f"{normalized} ja esta na allowlist")
+        raise HTTPException(status_code=409, detail=f"{normalized} já está na allowlist")
     await db.refresh(entry)
     await blocklist_cache.refresh()
     return entry
 
 
-@router.delete("/allowlist/{entry_id}", status_code=204)
+@router.delete("/allowlist/{entry_id}", status_code=204, dependencies=[Depends(require_admin)])
 async def remove_allowlist(entry_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(IPAllowlist).where(IPAllowlist.id == entry_id))
     entry = result.scalars().first()
     if entry is None:
-        raise HTTPException(status_code=404, detail="Entrada nao encontrada na allowlist")
+        raise HTTPException(status_code=404, detail="Entrada não encontrada na allowlist")
     await db.delete(entry)
     await db.commit()
     await blocklist_cache.refresh()
 
 
-@router.post("/{ip}/unblock", response_model=BlockedIPOut)
+@router.post("/{ip}/unblock", response_model=BlockedIPOut, dependencies=[Depends(require_admin)])
 async def unblock_ip(
     ip: str,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     result = await db.execute(select(BlockedIP).where(BlockedIP.ip == ip, BlockedIP.unblocked_at.is_(None)))
     blocked = result.scalars().first()
     if blocked is None:
-        raise HTTPException(status_code=404, detail="Esse IP nao esta bloqueado")
+        raise HTTPException(status_code=404, detail="Esse IP não está bloqueado")
 
     blocked.unblocked_at = datetime.now(timezone.utc)
     blocked.unblocked_by = current_user

@@ -53,7 +53,7 @@
 
 /*
   Veryon e um app dark-only (ferramenta de operacoes de seguranca).
-  As mesmas cores valem para :root e .dark de proposito -- nao existe modo claro.
+  As mesmas cores valem para :root e .dark de proposito: nao existe modo claro.
 */
 :root,
 .dark {

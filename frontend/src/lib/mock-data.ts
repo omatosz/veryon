@@ -38,7 +38,7 @@ export interface ReportEntry {
 export const reports: ReportEntry[] = [
   {
     id: 2,
-    periodLabel: '19/08/2026 – 26/08/2026',
+    periodLabel: '19/08/2026 a 26/08/2026',
     generatedAt: '26/08/2026 01:27',
     totalEvents: 97,
     totalAlerts: 12,
@@ -47,7 +47,7 @@ export const reports: ReportEntry[] = [
   },
   {
     id: 1,
-    periodLabel: '12/08/2026 – 19/08/2026',
+    periodLabel: '12/08/2026 a 19/08/2026',
     generatedAt: '19/08/2026 08:56',
     totalEvents: 141,
     totalAlerts: 19,

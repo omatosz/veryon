@@ -1,0 +1,3 @@
+# Dependencias so de teste. Nao entram na imagem do backend.
+-r requirements.txt
+pytest==8.*

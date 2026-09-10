@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import current_username, get_current_user, require_admin
 from app.db.models import ScanJob
 from app.db.session import get_db
 from app.schemas import ScanJobOut
@@ -18,10 +18,10 @@ async def list_scans(limit: int = Query(20, le=100), db: AsyncSession = Depends(
     return result.scalars().all()
 
 
-@router.post("", response_model=ScanJobOut, status_code=202)
+@router.post("", response_model=ScanJobOut, status_code=202, dependencies=[Depends(require_admin)])
 async def request_scan(
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     """Enfileira uma varredura. O servico do scanner pega no proximo ciclo.
 
@@ -33,7 +33,7 @@ async def request_scan(
     if running is not None:
         raise HTTPException(
             status_code=409,
-            detail=f"Ja existe uma varredura {running.status} (#{running.id}). Espere ela terminar.",
+            detail=f"Já existe uma varredura {running.status} (#{running.id}). Espere ela terminar.",
         )
 
     job = ScanJob(requested_by=current_user, status="queued")
@@ -48,5 +48,5 @@ async def get_scan(job_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(ScanJob).where(ScanJob.id == job_id))
     job = result.scalars().first()
     if job is None:
-        raise HTTPException(status_code=404, detail="Varredura nao encontrada")
+        raise HTTPException(status_code=404, detail="Varredura não encontrada")
     return job

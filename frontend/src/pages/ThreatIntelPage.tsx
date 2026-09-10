@@ -150,7 +150,7 @@ function NotFoundPanel({ ip }: { ip: string }) {
       {isPrivate ? (
         <div className="rounded-xl border border-border bg-card p-5.5 text-sm leading-relaxed text-muted-foreground">
           Esse IP está numa faixa privada (RFC 1918) da rede do laboratório, então não existe reputação pública associada
-          a ele — provedores como AbuseIPDB e VirusTotal só indexam endereços roteáveis na internet. O serviço de threat
+          a ele, porque provedores como AbuseIPDB e VirusTotal só indexam endereços roteáveis na internet. O serviço de threat
           intel do projeto pula IPs privados automaticamente ao decidir o que enriquecer.
         </div>
       ) : (
@@ -158,7 +158,7 @@ function NotFoundPanel({ ip }: { ip: string }) {
           <Info className="h-7 w-7 text-muted-foreground" strokeWidth={1.5} />
           <span className="text-sm text-foreground">Sem dados de threat intel para {ip}</span>
           <span className="max-w-sm text-xs text-muted-foreground">
-            Esse IP ainda não foi enriquecido — o serviço processa até 5 IPs públicos novos por ciclo (a cada 60s).
+            Esse IP ainda não foi enriquecido. O serviço processa até 5 IPs públicos novos por ciclo (a cada 60s).
           </span>
         </div>
       )}

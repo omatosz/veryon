@@ -3,7 +3,7 @@ Enriquece IPs vistos em raw_events com reputacao de tres fontes de threat
 intel (AbuseIPDB, VirusTotal, OTX) e grava o resultado em ip_enrichment.
 
 Roda em loop continuo processando IPs novos/desatualizados, mas tambem
-aceita `--ip X.X.X.X` para enriquecer um IP especifico sob demanda -- util
+aceita `--ip X.X.X.X` para enriquecer um IP especifico sob demanda, util
 porque o trafego que a gente proprio gera e quase todo interno (rede
 docker, host), entao raramente ha um IP publico de verdade pra enriquecer
 organicamente numa demo.

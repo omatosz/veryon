@@ -9,6 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 
 from app.api import (
+    actors,
     alerts,
     api_analysis,
     auth,
@@ -16,12 +17,23 @@ from app.api import (
     enrichment,
     events,
     ingest,
+    notifications,
     prevention as prevention_api,
+    retention as retention_api,
     scans,
     stats,
+    users,
     vulnerabilities,
 )
-from app.core import api_analyzer, api_traffic, blocklist, prevention
+from app.core import (
+    actor_tracker,
+    api_analyzer,
+    api_traffic,
+    blocklist,
+    notifier,
+    prevention,
+    retention,
+)
 from app.core.cache import redis_client
 from app.core.config import settings
 from app.core.limiter import limiter
@@ -70,6 +82,10 @@ app.include_router(scans.router)
 app.include_router(api_analysis.router)
 app.include_router(ingest.router)
 app.include_router(prevention_api.router)
+app.include_router(notifications.router)
+app.include_router(retention_api.router)
+app.include_router(users.router)
+app.include_router(actors.router)
 
 
 def rotas_registradas() -> list[tuple[str, str]]:
@@ -92,6 +108,18 @@ def rotas_registradas() -> list[tuple[str, str]]:
 @app.on_event("startup")
 async def on_startup():
     await seed_admin_user()
+
+    # As politicas de retencao vivem no banco, mas quem manda nelas e o .env.
+    # Reconciliar aqui e o que permite trocar um prazo editando o .env e
+    # reiniciando, em vez de escrever migration. Nao derruba o boot se falhar:
+    # sem politica o banco cresce, o que e ruim, mas subir sem API e pior.
+    try:
+        resultado = await retention.aplicar()
+        if resultado["mudancas"]:
+            log.info("retencao: %s", "; ".join(resultado["mudancas"]))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("retencao nao pode ser aplicada no boot: %s", exc)
+
     # Carrega antes de aceitar trafego: subir com a lista vazia deixaria uma
     # janela em que quem esta bloqueado passa.
     await blocklist.refresh()
@@ -102,7 +130,19 @@ async def on_startup():
         asyncio.create_task(api_traffic.flush_loop()),
         asyncio.create_task(api_analyzer.analyze_loop()),
         asyncio.create_task(prevention.evaluate_loop()),
+        # Roda depois do analisador de proposito: so vira ator quem ja virou
+        # achado, e quem decide isso e o analisador.
+        asyncio.create_task(actor_tracker.track_loop()),
     ]
+
+    # O notificador so sobe se estiver ligado na configuracao: deixar o laco
+    # rodando desligado seria consulta ao banco a cada 15s pra nada. Ao subir,
+    # ele leva o checkpoint pro alerta mais recente, entao ligar num banco com
+    # historico nao dispara mensagem sobre o que ja passou.
+    if settings.notifications_enabled:
+        app.state.api_tasks.append(asyncio.create_task(notifier.notify_loop()))
+    else:
+        log.info("notificador desligado (NOTIFICATIONS_ENABLED=false)")
 
 
 @app.on_event("shutdown")

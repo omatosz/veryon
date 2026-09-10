@@ -16,6 +16,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { FilterPill } from '@/components/ui/filter-pill'
 import { ErrorState, LoadingState } from '@/components/ui/async-state'
 import { StatPill } from '@/components/ui/stat-pill'
+import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
 import {
   blockIp,
@@ -154,6 +155,7 @@ export function PreventionPage() {
 }
 
 function CriticalQueue() {
+  const { isAdmin } = useAuth()
   const [items, setItems] = useState<ApiQueueItem[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
@@ -207,7 +209,8 @@ function CriticalQueue() {
         {items.map((item) => {
           const key = `${item.kind}-${item.id}`
           const cor = severityColor[item.severity] ?? '#8E8EA3'
-          const podeBloquear = Boolean(item.target) && item.kind !== 'vulnerability'
+          // Bloquear IP muda o comportamento do sistema, entao e de admin.
+          const podeBloquear = isAdmin && Boolean(item.target) && item.kind !== 'vulnerability'
           return (
             <div
               key={key}
@@ -259,6 +262,7 @@ function CriticalQueue() {
 }
 
 function PolicyList() {
+  const { isAdmin } = useAuth()
   const [policies, setPolicies] = useState<ApiPolicy[]>([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -365,8 +369,14 @@ function PolicyList() {
                   <button
                     type="button"
                     onClick={() => toggleEnabled(p)}
-                    disabled={busyId === p.id}
-                    title={p.enabled ? 'Desligar a política' : 'Ligar a política'}
+                    disabled={busyId === p.id || !isAdmin}
+                    title={
+                      isAdmin
+                        ? p.enabled
+                          ? 'Desligar a política'
+                          : 'Ligar a política'
+                        : 'Só um administrador liga ou desliga política'
+                    }
                     className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-white/[0.06] disabled:opacity-50"
                   >
                     <ShieldOff className="h-3.5 w-3.5" />
@@ -374,7 +384,7 @@ function PolicyList() {
                   <button
                     type="button"
                     onClick={() => toggleMode(p)}
-                    disabled={busyId === p.id || !p.enabled}
+                    disabled={busyId === p.id || !p.enabled || !isAdmin}
                     className={cn(
                       'flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-40',
                       emVigor ? 'bg-success text-[#0A0A0F]' : 'border border-border text-foreground',
@@ -431,6 +441,7 @@ function PolicyList() {
 }
 
 function ActionTrail() {
+  const { isAdmin } = useAuth()
   const [actions, setActions] = useState<ApiPreventionAction[]>([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -506,7 +517,8 @@ function ActionTrail() {
                   {a.status === 'applied' && (
                     <button
                       type="button"
-                      disabled={busyId === a.id}
+                      disabled={busyId === a.id || !isAdmin}
+                      title={isAdmin ? undefined : 'Só um administrador pode desfazer'}
                       onClick={() => handleUndo(a)}
                       className="flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-[11px] text-foreground transition-colors hover:bg-white/[0.06] disabled:opacity-50"
                     >

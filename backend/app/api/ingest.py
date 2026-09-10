@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException
 
-from app.core import api_signals, api_traffic
+from app.core import actor_fingerprint, api_signals, api_traffic
 from app.core.config import settings
 from app.schemas import IngestBatch, IngestResult
 
@@ -32,7 +32,7 @@ def _autorizar(chave: str | None) -> None:
     # compare_digest em vez de ==: comparacao normal sai mais cedo no primeiro
     # byte diferente, e isso da pra medir e usar pra adivinhar a chave.
     if not chave or not secrets.compare_digest(chave, esperada):
-        raise HTTPException(status_code=401, detail="Chave de ingestao invalida")
+        raise HTTPException(status_code=401, detail="Chave de ingestão inválida")
 
 
 @router.post("/api-logs", response_model=IngestResult)
@@ -70,6 +70,11 @@ async def ingest_api_logs(
                 "duration_ms": item.duration_ms,
                 "response_bytes": item.response_bytes,
                 "user_agent": item.user_agent,
+                "header_sig": (
+                    actor_fingerprint.assinatura_de_cabecalhos(item.headers)[:600] or None
+                    if item.headers
+                    else None
+                ),
                 "query": item.query,
                 # O corpo entra so na busca por padrao de injecao e nao e
                 # guardado. Log de acesso de cliente pode ter dado pessoal
