@@ -16,6 +16,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [formState, setFormState] = useState<FormState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const [errorLabel, setErrorLabel] = useState('')
   const [shakeKey, setShakeKey] = useState(0)
   const { isAuthenticated, login } = useAuth()
   const navigate = useNavigate()
@@ -36,12 +37,25 @@ export function LoginPage() {
       await login(username, password, honeypot)
       navigate('/dashboard')
     } catch (err) {
+      // O rótulo do botão segue o erro de verdade. Fixo em "credenciais
+      // inválidas" ele acusava senha errada até quando a chamada nem chegou
+      // no servidor, que é o caso do status 0.
       let message = 'Não foi possível conectar ao servidor'
+      let label = 'Servidor fora de alcance'
       if (err instanceof ApiError) {
-        if (err.status === 401) message = 'Usuário ou senha incorretos'
-        else if (err.status === 429) message = 'Muitas tentativas. Aguarde um minuto e tente de novo'
+        if (err.status === 401) {
+          message = 'Usuário ou senha incorretos'
+          label = 'Credenciais inválidas'
+        } else if (err.status === 429) {
+          message = 'Muitas tentativas. Aguarde um minuto e tente de novo'
+          label = 'Muitas tentativas'
+        } else if (err.status > 0) {
+          message = err.message
+          label = 'Falha no servidor'
+        }
       }
       setErrorMessage(message)
+      setErrorLabel(label)
       setFormState('error')
       setShakeKey((k) => k + 1)
       setTimeout(() => setFormState('idle'), 2000)
@@ -159,7 +173,7 @@ export function LoginPage() {
                   className="flex items-center gap-2"
                 >
                   <X className="h-4 w-4" strokeWidth={2.5} />
-                  Credenciais inválidas
+                  {errorLabel}
                 </motion.span>
               ) : (
                 <motion.span key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>

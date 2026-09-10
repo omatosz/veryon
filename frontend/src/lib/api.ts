@@ -1,6 +1,10 @@
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const TOKEN_KEY = 'soc_siem_token'
 
+/** Disparado no window quando o servidor recusa o token. Quem ouve e o
+ *  AuthProvider, que derruba a sessao e deixa o router mostrar o login. */
+export const SESSAO_EXPIRADA = 'veryon:sessao-expirada'
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
 }
@@ -22,7 +26,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken()
+  // O login nunca leva token. Com um token velho parado no navegador, o
+  // header Authorization tira a chamada da categoria "simples" do CORS, o
+  // navegador passa a exigir preflight e a falha aparece como servidor fora
+  // do ar, escondendo que o problema era a sessao anterior.
+  const token = path === '/auth/login' ? null : getToken()
   const headers = new Headers(options.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (options.body && !(options.body instanceof URLSearchParams)) {
@@ -48,9 +56,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     // tela mostrava "erro ao carregar" e o usuário ficava preso: o certo é
     // descartar o token e voltar pro login. O próprio /auth/login fica de
     // fora, senão senha errada viraria um recarregamento em vez de mensagem.
-    if (res.status === 401 && !path.startsWith('/auth/')) {
+    //
+    // O `getToken()` no fim faz isso valer uma vez só. Antes cada 401 chamava
+    // location.assign('/'), e o dashboard dispara meia dúzia de chamadas de
+    // uma vez: com um token velho guardado virava uma fila de recarregamentos
+    // de página inteira, que abortava o login em andamento e aparecia na tela
+    // como "não foi possível conectar ao servidor", com o servidor tendo
+    // respondido 200. Agora só avisa, e o router troca de tela sem recarregar.
+    if (res.status === 401 && !path.startsWith('/auth/') && getToken()) {
       clearToken()
-      if (window.location.pathname !== '/') window.location.assign('/')
+      window.dispatchEvent(new Event(SESSAO_EXPIRADA))
     }
     throw new ApiError(res.status, detail)
   }

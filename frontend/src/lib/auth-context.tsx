@@ -44,7 +44,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isAuthenticated) void carregarUsuario()
   }, [isAuthenticated, carregarUsuario])
 
+  // A api avisa aqui quando o servidor recusa o token. Derrubar a sessao pelo
+  // estado deixa o ProtectedRoute levar pro login sozinho, sem recarregar a
+  // pagina no meio de uma chamada que ja estava indo.
+  useEffect(() => {
+    function aoExpirar() {
+      setUser(null)
+      setIsAuthenticated(false)
+    }
+    window.addEventListener(api.SESSAO_EXPIRADA, aoExpirar)
+    return () => window.removeEventListener(api.SESSAO_EXPIRADA, aoExpirar)
+  }, [])
+
   async function login(username: string, password: string, honeypot = '') {
+    // Sessao velha nao participa de login novo. Se a tentativa falhar, o
+    // usuario fica deslogado de verdade em vez de guardar um token morto.
+    api.clearToken()
     const token = await api.login(username, password, honeypot)
     api.setToken(token)
     setIsAuthenticated(true)
