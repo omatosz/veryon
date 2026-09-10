@@ -48,6 +48,12 @@ class Alert(Base):
     source_ip: Mapped[str | None] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="open")
+    # Os tres campos abaixo so fazem sentido juntos: por que o alerta mudou de
+    # estado, quem escreveu e quando. Ficam nulos no que foi triado antes de
+    # existir onde escrever.
+    triage_note: Mapped[str | None] = mapped_column(Text)
+    triaged_by: Mapped[str | None] = mapped_column(String(80))
+    triaged_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
 
@@ -73,6 +79,12 @@ class User(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    # 'admin' ou 'analyst'. Analista le tudo e tria; admin faz o que muda o
+    # comportamento do sistema ou apaga dado.
+    role: Mapped[str] = mapped_column(String(16), nullable=False, server_default="analyst")
+    # Desligar em vez de apagar. Os campos de auditoria espalhados pelo banco
+    # guardam o nome de quem fez, e nome sem dono e pior que conta desligada.
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

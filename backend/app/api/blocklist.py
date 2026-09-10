@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import current_username, get_current_user, require_admin
 from app.core import blocklist as blocklist_cache
 from app.db.models import BlockedIP, IPAllowlist
 from app.db.session import get_db
@@ -73,12 +73,12 @@ async def list_blocklist(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
-@router.post("", response_model=BlockedIPOut, status_code=201)
+@router.post("", response_model=BlockedIPOut, status_code=201, dependencies=[Depends(require_admin)])
 async def block_ip(
     body: BlockIPIn,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     normalized = await guard_target(request, db, body.ip)
 
@@ -107,11 +107,11 @@ async def list_allowlist(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
-@router.post("/allowlist", response_model=AllowlistOut, status_code=201)
+@router.post("/allowlist", response_model=AllowlistOut, status_code=201, dependencies=[Depends(require_admin)])
 async def add_allowlist(
     body: AllowlistIn,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     exact, net = blocklist_cache.parse_target(body.cidr)
     if exact is None and net is None:
@@ -130,7 +130,7 @@ async def add_allowlist(
     return entry
 
 
-@router.delete("/allowlist/{entry_id}", status_code=204)
+@router.delete("/allowlist/{entry_id}", status_code=204, dependencies=[Depends(require_admin)])
 async def remove_allowlist(entry_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(IPAllowlist).where(IPAllowlist.id == entry_id))
     entry = result.scalars().first()
@@ -141,11 +141,11 @@ async def remove_allowlist(entry_id: int, db: AsyncSession = Depends(get_db)):
     await blocklist_cache.refresh()
 
 
-@router.post("/{ip}/unblock", response_model=BlockedIPOut)
+@router.post("/{ip}/unblock", response_model=BlockedIPOut, dependencies=[Depends(require_admin)])
 async def unblock_ip(
     ip: str,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     result = await db.execute(select(BlockedIP).where(BlockedIP.ip == ip, BlockedIP.unblocked_at.is_(None)))
     blocked = result.scalars().first()

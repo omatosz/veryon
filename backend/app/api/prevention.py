@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import current_username, get_current_user, require_admin
 from app.core import blocklist as blocklist_cache, prevention
 from app.db.models import BlockedIP, PreventionAction, PreventionPolicy
 from app.db.session import get_db
@@ -30,12 +30,12 @@ async def list_policies(db: AsyncSession = Depends(get_db)):
     return (await db.execute(stmt)).scalars().all()
 
 
-@router.patch("/policies/{policy_id}", response_model=PolicyOut)
+@router.patch("/policies/{policy_id}", response_model=PolicyOut, dependencies=[Depends(require_admin)])
 async def update_policy(
     policy_id: int,
     body: PolicyUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     """Liga, desliga ou muda o modo de uma politica.
 
@@ -103,11 +103,11 @@ async def list_actions(
     return (await db.execute(stmt)).scalars().all()
 
 
-@router.post("/actions/{action_id}/undo", response_model=PreventionActionOut)
+@router.post("/actions/{action_id}/undo", response_model=PreventionActionOut, dependencies=[Depends(require_admin)])
 async def undo_action(
     action_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     """Trilho 7: desfaz uma acao aplicada.
 

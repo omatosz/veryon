@@ -3,6 +3,7 @@ import { Bell, Menu, Search } from 'lucide-react'
 
 import { Sidebar } from '@/components/layout/Sidebar'
 import { ShaderBackground } from '@/components/ui/shader-background'
+import { useAuth } from '@/lib/auth-context'
 
 interface AppShellProps {
   title: string
@@ -10,6 +11,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ title, children }: AppShellProps) {
+  const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
@@ -42,8 +44,11 @@ export function AppShell({ title, children }: AppShellProps) {
           <div className="flex items-center gap-4">
             <Search className="hidden h-[18px] w-[18px] cursor-pointer text-muted-foreground sm:block" strokeWidth={1.75} />
             <Bell className="h-[18px] w-[18px] cursor-pointer text-muted-foreground" strokeWidth={1.75} />
-            <div className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-primary/14 font-heading text-xs font-semibold text-primary">
-              AD
+            <div
+              title={user ? `${user.username} (${user.role === 'admin' ? 'administrador' : 'analista'})` : undefined}
+              className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-primary/14 font-heading text-xs font-semibold uppercase text-primary"
+            >
+              {(user?.username ?? '?').slice(0, 2)}
             </div>
           </div>
         </div>

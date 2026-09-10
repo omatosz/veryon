@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import current_username, get_current_user
 from app.db.models import ScanJob, Vulnerability
 from app.db.session import get_db
 from app.schemas import ScanJobOut, VulnerabilityOut, VulnerabilityUpdate, VulnSummaryOut
@@ -99,7 +99,7 @@ async def update_vulnerability(
     vuln_id: int,
     body: VulnerabilityUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(current_username),
 ):
     result = await db.execute(select(Vulnerability).where(Vulnerability.id == vuln_id))
     vuln = result.scalars().first()

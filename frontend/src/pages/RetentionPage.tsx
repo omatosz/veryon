@@ -21,6 +21,7 @@ import {
   type ApiRetentionStatus,
   type ApiRetentionTable,
 } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import { formatDateTime } from '@/lib/format'
 
 const NOME_DA_TABELA: Record<string, string> = {
@@ -198,6 +199,7 @@ function CartaoDaTabela({ tabela }: { tabela: ApiRetentionTable }) {
 }
 
 export function RetentionPage() {
+  const { isAdmin } = useAuth()
   const [dados, setDados] = useState<ApiRetentionStatus | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState<string | null>(null)
@@ -295,8 +297,20 @@ export function RetentionPage() {
           hint={dados.ligada ? `de ${dados.tabelas.length}` : 'retenção desligada no .env'}
         />
 
+        {/* Só admin: as duas ações mexem em política que apaga dado. O
+            analista continua vendo a tela inteira, que é o que responde
+            "o banco vai encher?". */}
         <div className="ml-auto flex gap-2">
-          <Button variant="outline" onClick={() => void reaplicar()} disabled={ocupado !== null}>
+          {!isAdmin && (
+            <span className="self-center text-[11.5px] text-muted-foreground">
+              Mudar política é ação de administrador.
+            </span>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => void reaplicar()}
+            disabled={ocupado !== null || !isAdmin}
+          >
             {ocupado === 'apply' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -304,7 +318,7 @@ export function RetentionPage() {
             )}
             Reaplicar configuração
           </Button>
-          <Button onClick={() => void comprimirAgora()} disabled={ocupado !== null}>
+          <Button onClick={() => void comprimirAgora()} disabled={ocupado !== null || !isAdmin}>
             {ocupado === 'run' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (

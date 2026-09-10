@@ -21,6 +21,7 @@ from app.api import (
     retention as retention_api,
     scans,
     stats,
+    users,
     vulnerabilities,
 )
 from app.core import (
@@ -82,6 +83,7 @@ app.include_router(ingest.router)
 app.include_router(prevention_api.router)
 app.include_router(notifications.router)
 app.include_router(retention_api.router)
+app.include_router(users.router)
 
 
 def rotas_registradas() -> list[tuple[str, str]]:

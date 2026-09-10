@@ -13,6 +13,7 @@ import { PreventionPage } from '@/pages/PreventionPage'
 import { ReportsPage } from '@/pages/ReportsPage'
 import { NotificationsPage } from '@/pages/NotificationsPage'
 import { RetentionPage } from '@/pages/RetentionPage'
+import { UsersPage } from '@/pages/UsersPage'
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/retention" element={<RetentionPage />} />
+          <Route path="/users" element={<UsersPage />} />
         </Route>
       </Routes>
     </AuthProvider>

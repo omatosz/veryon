@@ -33,6 +33,7 @@ import {
   type NotifyKind,
   type NotifyLevel,
 } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import { formatDateTime } from '@/lib/format'
 
 const NIVEIS: NotifyLevel[] = ['informational', 'low', 'medium', 'high', 'critical']
@@ -79,6 +80,7 @@ function faixaDoResumo(canal: ApiNotifyChannel): string {
 }
 
 export function NotificationsPage() {
+  const { isAdmin } = useAuth()
   const [canais, setCanais] = useState<ApiNotifyChannel[] | null>(null)
   const [fila, setFila] = useState<ApiNotifyQueueItem[]>([])
   const [erro, setErro] = useState<string | null>(null)
@@ -194,7 +196,16 @@ export function NotificationsPage() {
           hint="esgotaram as tentativas"
         />
         <div className="ml-auto flex gap-2">
-          <Button variant="outline" onClick={() => void resumoAgora()} disabled={ocupado === -1}>
+          {!isAdmin && (
+            <span className="self-center text-[11.5px] text-muted-foreground">
+              Configurar canal é ação de administrador.
+            </span>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => void resumoAgora()}
+            disabled={ocupado === -1 || !isAdmin}
+          >
             {ocupado === -1 ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -202,7 +213,7 @@ export function NotificationsPage() {
             )}
             Enviar resumo agora
           </Button>
-          <Button onClick={() => setCriando((v) => !v)}>
+          <Button onClick={() => setCriando((v) => !v)} disabled={!isAdmin}>
             <Plus className="h-4 w-4" />
             Novo canal
           </Button>
@@ -239,6 +250,7 @@ export function NotificationsPage() {
               canal={canal}
               ocupado={ocupado === canal.id}
               resultado={resultado[canal.id]}
+              podeEditar={isAdmin}
               onAlternar={() => void alternar(canal)}
               onTestar={() => void testar(canal)}
               onRemover={() => void remover(canal)}
@@ -337,6 +349,7 @@ function LinhaCanal({
   canal,
   ocupado,
   resultado,
+  podeEditar,
   onAlternar,
   onTestar,
   onRemover,
@@ -344,6 +357,7 @@ function LinhaCanal({
   canal: ApiNotifyChannel
   ocupado: boolean
   resultado?: { ok: boolean; detalhe: string }
+  podeEditar: boolean
   onAlternar: () => void
   onTestar: () => void
   onRemover: () => void
@@ -394,14 +408,14 @@ function LinhaCanal({
         </div>
 
         <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="sm" onClick={onTestar} disabled={ocupado}>
+          <Button variant="outline" size="sm" onClick={onTestar} disabled={ocupado || !podeEditar}>
             {ocupado ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             Testar
           </Button>
-          <Button variant={canal.enabled ? 'secondary' : 'default'} size="sm" onClick={onAlternar} disabled={ocupado}>
+          <Button variant={canal.enabled ? 'secondary' : 'default'} size="sm" onClick={onAlternar} disabled={ocupado || !podeEditar}>
             {canal.enabled ? 'Desligar' : 'Ligar'}
           </Button>
-          <Button variant="destructive" size="sm" onClick={onRemover} disabled={ocupado}>
+          <Button variant="destructive" size="sm" onClick={onRemover} disabled={ocupado || !podeEditar}>
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>

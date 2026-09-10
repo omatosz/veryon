@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin
 from app.core import notifier, notify_adapters
 from app.core.config import settings
 from app.db.session import get_db
@@ -139,7 +139,7 @@ async def listar_canais(db: AsyncSession = Depends(get_db)):
     return [dict(l) for l in (await db.execute(SELECT_CANAIS)).mappings()]
 
 
-@router.post("/channels", response_model=CanalOut, status_code=201)
+@router.post("/channels", response_model=CanalOut, status_code=201, dependencies=[Depends(require_admin)])
 async def criar_canal(dados: CanalIn, db: AsyncSession = Depends(get_db)):
     try:
         linha = (await db.execute(INSERT_CANAL, dados.model_dump())).mappings().first()
@@ -154,7 +154,7 @@ async def criar_canal(dados: CanalIn, db: AsyncSession = Depends(get_db)):
     return dict(linha)
 
 
-@router.patch("/channels/{canal_id}", response_model=CanalOut)
+@router.patch("/channels/{canal_id}", response_model=CanalOut, dependencies=[Depends(require_admin)])
 async def atualizar_canal(
     canal_id: int, dados: CanalUpdate, db: AsyncSession = Depends(get_db)
 ):
@@ -200,7 +200,7 @@ async def atualizar_canal(
     return dict(linha)
 
 
-@router.delete("/channels/{canal_id}", status_code=204)
+@router.delete("/channels/{canal_id}", status_code=204, dependencies=[Depends(require_admin)])
 async def remover_canal(canal_id: int, db: AsyncSession = Depends(get_db)):
     await _busca_canal(db, canal_id)
     # A fila tem ON DELETE CASCADE, entao as mensagens daquele canal saem
@@ -211,7 +211,7 @@ async def remover_canal(canal_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
 
-@router.post("/channels/{canal_id}/test", response_model=ResultadoTeste)
+@router.post("/channels/{canal_id}/test", response_model=ResultadoTeste, dependencies=[Depends(require_admin)])
 async def testar_canal(canal_id: int, db: AsyncSession = Depends(get_db)):
     """Manda uma mensagem agora, fora da fila e fora do teto por hora.
 
@@ -246,7 +246,7 @@ async def testar_canal(canal_id: int, db: AsyncSession = Depends(get_db)):
     return ResultadoTeste(ok=True, detalhe=f"Mensagem enviada para {canal['target']}")
 
 
-@router.post("/digest/run")
+@router.post("/digest/run", dependencies=[Depends(require_admin)])
 async def rodar_digest_agora():
     """Forca o envio dos resumos pendentes, ignorando o periodo.
 

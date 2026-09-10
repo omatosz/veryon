@@ -27,7 +27,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin
 from app.core import retention
 from app.core.config import settings
 
@@ -95,7 +95,7 @@ async def ver_status():
     )
 
 
-@router.post("/apply")
+@router.post("/apply", dependencies=[Depends(require_admin)])
 async def aplicar_politicas() -> dict[str, Any]:
     """Reconcilia o banco com o .env agora, sem reiniciar o backend.
 
@@ -105,7 +105,7 @@ async def aplicar_politicas() -> dict[str, Any]:
     return await retention.aplicar()
 
 
-@router.post("/run")
+@router.post("/run", dependencies=[Depends(require_admin)])
 async def rodar_politicas(
     incluir_retencao: bool = Query(
         False,

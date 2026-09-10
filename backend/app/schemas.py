@@ -9,6 +9,34 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    role: str
+    is_active: bool
+    created_at: datetime
+
+
+class UserCreate(BaseModel):
+    # Sem espaco e sem maiuscula para que o nome que aparece nos campos de
+    # auditoria seja sempre o mesmo texto, escreva quem escrever.
+    username: str = Field(min_length=3, max_length=40, pattern=r"^[a-z0-9._-]+$")
+    # Doze e mais do que os oito de costume porque esta senha abre um painel
+    # que bloqueia IP e desliga defesa. Nao ha segundo fator para compensar.
+    password: str = Field(min_length=12, max_length=200)
+    role: Literal["admin", "analyst"] = "analyst"
+
+
+class UserUpdate(BaseModel):
+    """Tudo opcional: manda so o que muda."""
+
+    role: Literal["admin", "analyst"] | None = None
+    is_active: bool | None = None
+    password: str | None = Field(default=None, min_length=12, max_length=200)
+
+
 class EventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,11 +64,17 @@ class AlertOut(BaseModel):
     source_ip: str | None
     description: str | None
     status: str
+    triage_note: str | None = None
+    triaged_by: str | None = None
+    triaged_at: datetime | None = None
     payload: dict
 
 
 class AlertStatusUpdate(BaseModel):
     status: str
+    # Por que o alerta mudou de estado. Obrigatoria ao fechar, e a regra mora
+    # no handler porque depende do status que esta chegando. Ver alerts.py.
+    note: str | None = Field(default=None, max_length=2000)
 
 
 class EnrichmentOut(BaseModel):
@@ -308,6 +342,12 @@ class IngestedRequest(BaseModel):
     query: str | None = Field(default=None, max_length=500)
     # Corpo so e usado pra procurar padrao de injecao e nao fica guardado.
     body: str | None = Field(default=None, max_length=4000)
+    # NOME dos cabecalhos, na ordem em que o cliente os enviou. Sem valor: o
+    # nome identifica a ferramenta, o valor so traria cookie e token pra dentro
+    # de um lugar onde eles nao precisam estar. Opcional porque log de acesso
+    # padrao nao tem isso; quem manda ganha rastreamento de ator, quem nao
+    # manda segue com a analise normal.
+    headers: list[str] | None = Field(default=None, max_length=60)
 
 
 class IngestBatch(BaseModel):

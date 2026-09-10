@@ -106,6 +106,11 @@ export interface ApiAlert {
   source_ip: string | null
   description: string | null
   status: string
+  /** Os três só fazem sentido juntos: por que mudou, quem escreveu e quando.
+   *  Nulos no que foi triado antes de existir onde escrever. */
+  triage_note: string | null
+  triaged_by: string | null
+  triaged_at: string | null
   payload: Record<string, unknown>
 }
 
@@ -117,10 +122,13 @@ export function listAlerts(params: { level?: string; status?: string; limit?: nu
   return request<ApiAlert[]>(`/alerts?${qs}`)
 }
 
-export function updateAlertStatus(id: number, status: string) {
+/** Muda o estado do alerta. A nota é obrigatória ao fechar: sem ela a API
+ *  responde 422, porque fechar sem motivo apaga a única coisa que o próximo
+ *  analista precisa saber. */
+export function updateAlertStatus(id: number, status: string, note?: string) {
   return request<ApiAlert>(`/alerts/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(note ? { status, note } : { status }),
   })
 }
 
@@ -717,4 +725,40 @@ export function runRetention(incluirRetencao = false) {
   return request<{
     execucoes: { tabela: string; politica: string; ok: boolean; detalhe: string }[]
   }>(`/retention/run?incluir_retencao=${incluirRetencao}`, { method: 'POST' })
+}
+
+
+// --- Usuários e papéis ---
+
+export type UserRole = 'admin' | 'analyst'
+
+export interface ApiUser {
+  id: number
+  username: string
+  role: UserRole
+  is_active: boolean
+  created_at: string
+}
+
+/** Quem está logado e com que papel. O papel vem daqui e não do token, então
+ *  perder o admin vale na próxima carga da página, não daqui a uma hora. */
+export function getMe() {
+  return request<ApiUser>('/auth/me')
+}
+
+export function listUsers() {
+  return request<ApiUser[]>('/users')
+}
+
+export function createUser(body: { username: string; password: string; role: UserRole }) {
+  return request<ApiUser>('/users', { method: 'POST', body: JSON.stringify(body) })
+}
+
+/** Manda só o que muda. Trocar a própria senha é permitido; mudar o próprio
+ *  papel ou desligar a própria conta é recusado com 422. */
+export function updateUser(
+  id: number,
+  body: Partial<{ role: UserRole; is_active: boolean; password: string }>,
+) {
+  return request<ApiUser>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 }

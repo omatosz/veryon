@@ -17,7 +17,8 @@ import {
   type ApiBlockedIP,
   type ApiEnrichment,
 } from '@/lib/api'
-import { countryFlag, formatTime } from '@/lib/format'
+import { useAuth } from '@/lib/auth-context'
+import { countryFlag, formatDateTime, formatTime } from '@/lib/format'
 import { severityMeta, sourceMeta, statusMeta, type AlertStatus, type EventSource, type Severity } from '@/lib/mock-data'
 
 type SeverityFilter = Severity | 'all'
@@ -31,6 +32,7 @@ function alertSource(a: ApiAlert): EventSource | null {
 }
 
 export function AlertsPage() {
+  const { isAdmin } = useAuth()
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -42,6 +44,8 @@ export function AlertsPage() {
   const [blocklist, setBlocklist] = useState<ApiBlockedIP[]>([])
   const [blockActionError, setBlockActionError] = useState<string | null>(null)
   const [blocking, setBlocking] = useState(false)
+  const [nota, setNota] = useState('')
+  const [erroTriagem, setErroTriagem] = useState<string | null>(null)
 
   function refreshBlocklist() {
     listBlocklist()
@@ -113,6 +117,14 @@ export function AlertsPage() {
 
   const selected = alerts.find((a) => a.id === selectedId) ?? null
 
+  // A nota da gaveta acompanha o alerta selecionado. Sem isto, abrir o
+  // proximo alerta traria o texto escrito no anterior, que e a forma mais
+  // facil de gravar o motivo errado no alerta errado.
+  useEffect(() => {
+    setNota(selected?.triage_note ?? '')
+    setErroTriagem(null)
+  }, [selectedId, selected?.triage_note])
+
   const stats = useMemo(
     () => ({
       open: alerts.filter((a) => a.status === 'open').length,
@@ -124,12 +136,22 @@ export function AlertsPage() {
 
   async function setStatus(status: AlertStatus) {
     if (selectedId === null || updatingStatus) return
+    setErroTriagem(null)
+
+    // A checagem existe nos dois lados de propósito. Aqui ela evita a ida ao
+    // servidor e responde na hora; no servidor ela é a que vale, porque a API
+    // também é chamada de fora desta tela.
+    if (status === 'closed' && nota.trim().length < 3) {
+      setErroTriagem('Escreva o motivo antes de fechar. É o que o próximo analista vai ler.')
+      return
+    }
+
     setUpdatingStatus(true)
     try {
-      const updated = await updateAlertStatus(selectedId, status)
+      const updated = await updateAlertStatus(selectedId, status, nota.trim() || undefined)
       setAlerts((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
-    } catch {
-      // se a chamada falhar, mantém o estado anterior
+    } catch (e) {
+      setErroTriagem(e instanceof Error ? e.message : 'Não foi possível salvar')
     } finally {
       setUpdatingStatus(false)
     }
@@ -337,6 +359,32 @@ export function AlertsPage() {
                     Fechado
                   </StatusButton>
                 </div>
+
+                <textarea
+                  value={nota}
+                  onChange={(e) => setNota(e.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  placeholder="Por que este alerta mudou de estado. Obrigatório para fechar."
+                  className="mt-2 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none"
+                />
+
+                {erroTriagem && (
+                  <p className="mt-1.5 text-[12px] text-destructive">{erroTriagem}</p>
+                )}
+
+                {selected.triaged_by ? (
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    Última triagem por {selected.triaged_by}
+                    {selected.triaged_at && ` em ${formatDateTime(selected.triaged_at)}`}
+                  </p>
+                ) : (
+                  selected.status !== 'open' && (
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      Triado antes de existir registro de triagem, então não há motivo gravado.
+                    </p>
+                  )
+                )}
               </div>
 
               <div>
@@ -352,7 +400,8 @@ export function AlertsPage() {
                         </div>
                         <button
                           type="button"
-                          disabled={blocking}
+                          disabled={blocking || !isAdmin}
+                          title={isAdmin ? undefined : 'Só um administrador pode desbloquear'}
                           onClick={() => handleUnblock(entry.ip)}
                           className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium text-foreground transition-opacity hover:opacity-85 disabled:opacity-50"
                         >
@@ -366,7 +415,7 @@ export function AlertsPage() {
                     <div className="flex flex-col gap-2">
                       <button
                         type="button"
-                        disabled={!selected.source_ip || blocking}
+                        disabled={!selected.source_ip || blocking || !isAdmin}
                         onClick={handleBlock}
                         className="flex h-9 items-center justify-center gap-1.5 rounded-md border border-destructive/40 text-xs font-medium text-destructive transition-opacity hover:opacity-85 disabled:opacity-40"
                       >
@@ -375,6 +424,14 @@ export function AlertsPage() {
                       </button>
                       {!selected.source_ip && (
                         <span className="text-[11px] text-muted-foreground">Este alerta não tem IP de origem pra bloquear.</span>
+                      )}
+                      {/* Dizer o motivo em vez de sumir com o botão: analista
+                          que não entende por que não consegue agir vira
+                          chamado para o admin. */}
+                      {!isAdmin && (
+                        <span className="text-[11px] text-muted-foreground">
+                          Bloquear IP é ação de administrador. Você pode triar o alerta.
+                        </span>
                       )}
                     </div>
                   )
