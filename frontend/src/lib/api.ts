@@ -659,3 +659,62 @@ export function runNotifyDigest() {
     method: 'POST',
   })
 }
+
+// --- Retencao e compressao ---
+
+export interface ApiRetentionPolicy {
+  /** Prazo da politica que existe no banco. null quer dizer que nao existe. */
+  dias_no_banco: number | null
+  /** Prazo que o .env pede. null quer dizer desligada na configuracao. */
+  dias_no_env: number | null
+  /** false = banco e .env discordam. Ou alguem mexeu no banco na mao, ou a
+   *  reconciliacao falhou naquela tabela. */
+  em_dia: boolean
+  proxima_execucao: string | null
+  ultima_execucao: string | null
+  falhas: number | null
+}
+
+export interface ApiRetentionTable {
+  tabela: string
+  resumo: string
+  linhas: number
+  bytes: number
+  chunks: number
+  chunks_comprimidos: number
+  /** Os dois campos abaixo falam so dos chunks ja comprimidos, entao a
+   *  economia e medida e nao projetada. Ficam nulos enquanto nada comprimiu. */
+  bytes_antes_da_compressao: number | null
+  bytes_depois_da_compressao: number | null
+  economia: number | null
+  dado_mais_antigo: string | null
+  politicas: { compress: ApiRetentionPolicy; drop: ApiRetentionPolicy }
+}
+
+export interface ApiRetentionStatus {
+  ligada: boolean
+  tabelas: ApiRetentionTable[]
+  bytes_total: number
+  bytes_economizados: number
+}
+
+export function getRetentionStatus() {
+  return request<ApiRetentionStatus>('/retention/status')
+}
+
+/** Reconcilia as politicas do banco com o .env, igual ao que roda no boot.
+ *  Rodar duas vezes seguidas devolve `mudancas` vazio. */
+export function applyRetention() {
+  return request<{ ligada: boolean; mudancas: string[]; falhas: string[] }>(
+    '/retention/apply',
+    { method: 'POST' },
+  )
+}
+
+/** Antecipa a proxima execucao das politicas. So a compressao, a nao ser que
+ *  `incluirRetencao` seja pedido: compressao volta atras, chunk apagado nao. */
+export function runRetention(incluirRetencao = false) {
+  return request<{
+    execucoes: { tabela: string; politica: string; ok: boolean; detalhe: string }[]
+  }>(`/retention/run?incluir_retencao=${incluirRetencao}`, { method: 'POST' })
+}

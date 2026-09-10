@@ -79,6 +79,39 @@ class Settings(BaseSettings):
     # TLS implicito na porta 465. Quando ligado, o starttls e ignorado.
     smtp_ssl: bool = False
 
+    # --- Retencao e compressao no Timescale ---
+    # As politicas moram no banco, mas quem manda nelas e este bloco: a cada
+    # boot o backend compara o que esta configurado aqui com o que existe no
+    # banco e corrige a diferenca. Trocar um prazo e editar o .env e reiniciar,
+    # nao escrever migration.
+    #
+    # Em qualquer um dos campos abaixo, 0 desliga aquela politica.
+    #
+    # Desligado, nada e comprimido nem apagado automaticamente, e o backend
+    # remove as politicas que existirem. E a posicao segura: politica de
+    # retencao apaga dado de verdade, entao desligar tem que parar de apagar.
+    retention_enabled: bool = True
+
+    # Evento cru do honeypot e dos coletores. Comprime cedo porque a deteccao
+    # so olha o que acabou de chegar. Noventa dias cobre investigacao para tras
+    # e e o prazo que a maioria dos clientes pede em contrato.
+    raw_events_compress_after_days: int = 7
+    raw_events_drop_after_days: int = 90
+
+    # Alerta e a memoria do produto. Padrao e nunca apagar: comprimido ele
+    # ocupa pouco, e um SOC que esquece o que ja viu perde a parte que
+    # interessa. Trinta dias antes de comprimir porque tria de alerta antigo
+    # ainda acontece, e UPDATE em chunk comprimido e caro.
+    alerts_compress_after_days: int = 30
+    alerts_drop_after_days: int = 0
+
+    # Trafego de API e o maior volume do sistema e o mais descartavel. Dois
+    # dias antes de comprimir, e nao um, porque o analisador calcula a linha de
+    # base olhando 24h para tras: comprimir com um dia colocaria a janela de
+    # analise em cima do chunk comprimido a cada volta.
+    api_requests_compress_after_days: int = 2
+    api_requests_drop_after_days: int = 7
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

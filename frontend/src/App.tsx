@@ -12,6 +12,7 @@ import { ApiAnalysisPage } from '@/pages/ApiAnalysisPage'
 import { PreventionPage } from '@/pages/PreventionPage'
 import { ReportsPage } from '@/pages/ReportsPage'
 import { NotificationsPage } from '@/pages/NotificationsPage'
+import { RetentionPage } from '@/pages/RetentionPage'
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <Route path="/threat-intel" element={<ThreatIntelPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/retention" element={<RetentionPage />} />
         </Route>
       </Routes>
     </AuthProvider>
