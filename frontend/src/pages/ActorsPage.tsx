@@ -298,10 +298,10 @@ function Gaveta({ ref_, onFechar }: { ref_: string; onFechar: () => void }) {
 
       <div className="flex flex-wrap gap-2">
         <FilterPill active={aba === 'timeline'} onClick={() => setAba('timeline')}>
-          O que fez ({eventos.length})
+          O que fez? ({eventos.length})
         </FilterPill>
         <FilterPill active={aba === 'evidencia'} onClick={() => setAba('evidencia')}>
-          Por que é o mesmo
+          Por que é o mesmo?
         </FilterPill>
       </div>
 
