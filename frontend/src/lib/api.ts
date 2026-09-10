@@ -574,3 +574,88 @@ export interface ApiGeoSummary {
 export function getGeo(days = 7) {
   return request<ApiGeoSummary>(`/stats/geo?days=${days}`)
 }
+
+// --- Notificacoes ---
+
+export type NotifyKind = 'email' | 'discord' | 'slack' | 'teams' | 'generic'
+export type NotifyLevel = 'informational' | 'low' | 'medium' | 'high' | 'critical'
+
+export interface ApiNotifyChannel {
+  id: number
+  name: string
+  kind: NotifyKind
+  target: string
+  /** Abaixo disto o alerta nem chega neste canal. */
+  min_level: NotifyLevel
+  /** A partir daqui interrompe: sai sozinho. Entre os dois, espera o resumo. */
+  immediate_level: NotifyLevel
+  enabled: boolean
+  last_digest_at: string | null
+}
+
+export interface ApiNotifyChannelInput {
+  name: string
+  kind: NotifyKind
+  target: string
+  min_level: NotifyLevel
+  immediate_level: NotifyLevel
+  enabled: boolean
+}
+
+export interface ApiNotifyQueueItem {
+  id: number
+  canal: string
+  kind: NotifyKind
+  group_key: string
+  status: 'pending' | 'sent' | 'failed' | 'suppressed' | 'digest'
+  level: NotifyLevel
+  title: string
+  alert_count: number
+  attempts: number
+  last_error: string | null
+  created_at: string
+  sent_at: string | null
+  next_attempt_at: string | null
+}
+
+export function listNotifyChannels() {
+  return request<ApiNotifyChannel[]>('/notifications/channels')
+}
+
+export function createNotifyChannel(body: ApiNotifyChannelInput) {
+  return request<ApiNotifyChannel>('/notifications/channels', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateNotifyChannel(id: number, body: Partial<ApiNotifyChannelInput>) {
+  return request<ApiNotifyChannel>(`/notifications/channels/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteNotifyChannel(id: number) {
+  return request<void>(`/notifications/channels/${id}`, { method: 'DELETE' })
+}
+
+/** Manda uma mensagem agora, fora da fila. Responde 200 mesmo quando o destino
+ *  falha: o `ok` diz se chegou, e o `detalhe` traz o erro pra corrigir. */
+export function testNotifyChannel(id: number) {
+  return request<{ ok: boolean; detalhe: string }>(
+    `/notifications/channels/${id}/test`,
+    { method: 'POST' },
+  )
+}
+
+export function listNotifyQueue(status?: string) {
+  const q = status ? `?status=${encodeURIComponent(status)}` : ''
+  return request<ApiNotifyQueueItem[]>(`/notifications/queue${q}`)
+}
+
+export function runNotifyDigest() {
+  return request<{ resumos_enviados: number }>('/notifications/digest/run', {
+    method: 'POST',
+  })
+}

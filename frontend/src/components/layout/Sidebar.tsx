@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, NavLink } from 'react-router-dom'
-import { Activity, Bug, FileText, LayoutGrid, LogOut, Radar, ShieldAlert, ShieldCheck, Telescope, X } from 'lucide-react'
+import { Activity, Bell, Bug, FileText, LayoutGrid, LogOut, Radar, ShieldAlert, ShieldCheck, Telescope, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { getApiSummary, getPreventionSummary, getVulnSummary, listAlerts } from '@/lib/api'
@@ -73,7 +73,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     },
     {
       label: 'Resposta',
-      items: [{ to: '/prevention', label: 'Prevenção', icon: ShieldCheck, badge: queueCount }],
+      items: [
+        { to: '/prevention', label: 'Prevenção', icon: ShieldCheck, badge: queueCount },
+        { to: '/notifications', label: 'Notificações', icon: Bell },
+      ],
     },
     { label: 'Inteligência', items: [{ to: '/threat-intel', label: 'Threat Intel', icon: Telescope }] },
     { label: 'Operação', items: [{ to: '/reports', label: 'Relatórios', icon: FileText }] },

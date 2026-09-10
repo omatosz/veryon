@@ -16,12 +16,20 @@ from app.api import (
     enrichment,
     events,
     ingest,
+    notifications,
     prevention as prevention_api,
     scans,
     stats,
     vulnerabilities,
 )
-from app.core import actor_tracker, api_analyzer, api_traffic, blocklist, prevention
+from app.core import (
+    actor_tracker,
+    api_analyzer,
+    api_traffic,
+    blocklist,
+    notifier,
+    prevention,
+)
 from app.core.cache import redis_client
 from app.core.config import settings
 from app.core.limiter import limiter
@@ -70,6 +78,7 @@ app.include_router(scans.router)
 app.include_router(api_analysis.router)
 app.include_router(ingest.router)
 app.include_router(prevention_api.router)
+app.include_router(notifications.router)
 
 
 def rotas_registradas() -> list[tuple[str, str]]:
@@ -106,6 +115,15 @@ async def on_startup():
         # achado, e quem decide isso e o analisador.
         asyncio.create_task(actor_tracker.track_loop()),
     ]
+
+    # O notificador so sobe se estiver ligado na configuracao: deixar o laco
+    # rodando desligado seria consulta ao banco a cada 15s pra nada. Ao subir,
+    # ele leva o checkpoint pro alerta mais recente, entao ligar num banco com
+    # historico nao dispara mensagem sobre o que ja passou.
+    if settings.notifications_enabled:
+        app.state.api_tasks.append(asyncio.create_task(notifier.notify_loop()))
+    else:
+        log.info("notificador desligado (NOTIFICATIONS_ENABLED=false)")
 
 
 @app.on_event("shutdown")
