@@ -323,7 +323,10 @@ class ActorIP(Base):
     __tablename__ = "actor_ips"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    actor_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("actors.id", ondelete="CASCADE"), nullable=False)
+    # Anulavel por causa do vinculo orfao: quando o analista separa um IP do
+    # ator, a linha fica sem dono e com manual ligado. E o tumulo que impede o
+    # laco de refazer a juncao que a pessoa acabou de desfazer.
+    actor_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("actors.id", ondelete="CASCADE"))
     client_ip: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     first_seen: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)

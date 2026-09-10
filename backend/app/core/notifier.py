@@ -72,8 +72,20 @@ FETCH_CANAIS = text(
     # para qual canal. Quem precisa saber o endereco e a entrega, que busca em
     # FETCH_PENDENTES no momento de mandar. Assim uma troca de destino vale
     # para o que ja esta na fila.
-    "SELECT id, name, kind, min_level, immediate_level "
+    "SELECT id, name, kind, min_level, immediate_level, group_by_actor "
     "FROM notification_channels WHERE enabled"
+)
+
+# Etapa 3 do rastreamento de ator. Uma consulta por ciclo, com os IPs do lote
+# inteiro, em vez de uma por alerta: o laco roda a cada 15s e nao pode virar
+# N consultas so para descobrir de quem e cada endereco.
+FETCH_ATORES_POR_IP = text(
+    """
+    SELECT ai.client_ip, a.ref
+      FROM actor_ips ai
+      JOIN actors a ON a.id = ai.actor_id
+     WHERE ai.client_ip = ANY(:ips)
+    """
 )
 
 FETCH_ALERTAS_NOVOS = text(
@@ -110,10 +122,10 @@ def _upsert(status: str):
         f"""
         INSERT INTO alert_notifications
             (channel_id, group_key, status, level, level_weight, title, rule_id,
-             source_ip, first_alert_id, last_alert_id, payload)
+             source_ip, actor_ref, first_alert_id, last_alert_id, payload)
         VALUES
             (:canal, :grupo, '{status}', :level, :peso_novo, :title, :rule_id,
-             :source_ip, :alerta, :alerta, CAST(:payload AS jsonb))
+             :source_ip, :actor_ref, :alerta, :alerta, CAST(:payload AS jsonb))
         ON CONFLICT (channel_id, group_key) WHERE status = '{status}'
         DO UPDATE SET
             alert_count = alert_notifications.alert_count + 1,
@@ -159,10 +171,15 @@ ABSORVER_EM_ENVIADA = text(
 FETCH_PENDENTES = text(
     """
     SELECT n.id, n.channel_id, n.group_key, n.level, n.title, n.rule_id,
-           n.source_ip, n.alert_count, n.attempts, n.payload,
-           c.kind, c.target, c.name
+           n.source_ip, n.actor_ref, n.alert_count, n.attempts, n.payload,
+           c.kind, c.target, c.name,
+           -- LEFT JOIN: mensagem sem ator e o caso normal, nao um erro. E o
+           -- numero de IPs vem daqui e nao da linha da fila para que a
+           -- mensagem saia com a contagem de agora, nao a de quando enfileirou.
+           ator.ip_count AS actor_ips, ator.confidence AS actor_confidence
       FROM alert_notifications n
       JOIN notification_channels c ON c.id = n.channel_id
+      LEFT JOIN actors ator ON ator.ref = n.actor_ref
      WHERE n.status = 'pending'
        AND n.next_attempt_at <= now()
        AND c.enabled
@@ -204,15 +221,26 @@ MARCAR_FALHA = text(
 )
 
 
-def chave_de_grupo(alerta: dict[str, Any]) -> str:
-    """A unidade de agrupamento: hoje regra + IP de origem.
+def chave_de_grupo(alerta: dict[str, Any], por_ator: bool = True) -> str:
+    """A unidade de agrupamento: regra mais quem fez.
 
-    Fica numa funcao sozinha de proposito. Se o rastreamento de ator for
-    descongelado, esta funcao passa a devolver a identidade do ator e o
-    agrupamento passa a valer entre IPs diferentes, sem que nada mais neste
-    arquivo mude.
+    "Quem fez" era o IP de origem. Com o rastreamento de ator descongelado,
+    passa a ser o ator sempre que aquele IP pertencer a um conhecido. Um
+    atacante que roda de cinco enderecos deixa de gerar cinco mensagens
+    identicas e passa a gerar uma, que diz de quantos IPs aquilo veio.
+
+    A regra continua na chave. Agrupar so por ator juntaria coisas diferentes
+    numa mensagem so: SQL injection e forca bruta do mesmo sujeito sao dois
+    assuntos, e quem le precisa dos dois nomes.
+
+    Sem ator conhecido, ou com o agrupamento por ator desligado no canal, a
+    chave e exatamente a de antes. Nao existe caminho em que ligar isto piore.
     """
-    return f"{alerta.get('rule_id') or 'sem-regra'}|{alerta.get('source_ip') or 'sem-ip'}"
+    regra = alerta.get("rule_id") or "sem-regra"
+    ator = alerta.get("actor_ref")
+    if por_ator and ator:
+        return f"{regra}|ator:{ator}"
+    return f"{regra}|{alerta.get('source_ip') or 'sem-ip'}"
 
 
 def nivel_minimo(canal_min: str | None) -> int:
@@ -238,6 +266,9 @@ def _resumo(linha: dict[str, Any]) -> dict[str, Any]:
         "source_ip": linha.get("source_ip"),
         "alert_count": linha.get("alert_count") or 1,
         "mitre_technique": carga.get("mitre_technique"),
+        "actor_ref": linha.get("actor_ref"),
+        "actor_ips": linha.get("actor_ips"),
+        "actor_confidence": linha.get("actor_confidence"),
     }
 
 
@@ -351,11 +382,27 @@ async def enfileirar_novos() -> int:
         if not alertas:
             return 0
 
+        # De quem e cada IP deste lote. Uma consulta so, com a lista inteira.
+        ips = sorted({a["source_ip"] for a in alertas if a.get("source_ip")})
+        dono_do_ip: dict[str, str] = {}
+        if ips:
+            dono_do_ip = {
+                l["client_ip"]: l["ref"]
+                for l in (
+                    await sessao.execute(FETCH_ATORES_POR_IP, {"ips": ips})
+                ).mappings()
+            }
+
         for alerta in alertas:
             peso = notify_adapters.peso_do_nivel(alerta.get("level"))
-            grupo = chave_de_grupo(alerta)
+            alerta["actor_ref"] = dono_do_ip.get(alerta.get("source_ip") or "")
 
             for canal in canais:
+                # A chave sai daqui de dentro e nao de fora do laco porque cada
+                # canal escolhe se agrupa por ator. Dois canais podem ver o
+                # mesmo alerta com recortes diferentes, e esta e a linha que
+                # permite isso.
+                grupo = chave_de_grupo(alerta, por_ator=canal.get("group_by_actor", True))
 
                 # Trilho 2: severidade.
                 if peso < nivel_minimo(canal.get("min_level")):
@@ -401,6 +448,9 @@ async def enfileirar_novos() -> int:
                         "title": alerta.get("title"),
                         "rule_id": alerta.get("rule_id"),
                         "source_ip": alerta.get("source_ip"),
+                        # Guardado mesmo quando o canal nao agrupa por ator: a
+                        # mensagem continua podendo dizer de quem e aquilo.
+                        "actor_ref": alerta.get("actor_ref"),
                         "alerta": alerta["id"],
                         "peso_novo": peso,
                         "payload": json.dumps(
@@ -490,10 +540,12 @@ CANAIS_COM_DIGEST_VENCIDO = text(
 
 FETCH_ITENS_DIGEST = text(
     """
-    SELECT id, level, title, rule_id, source_ip, alert_count, payload
-      FROM alert_notifications
-     WHERE channel_id = :canal AND status = 'digest'
-     ORDER BY level_weight DESC, alert_count DESC
+    SELECT n.id, n.level, n.title, n.rule_id, n.source_ip, n.actor_ref,
+           n.alert_count, n.payload, ator.ip_count AS actor_ips
+      FROM alert_notifications n
+      LEFT JOIN actors ator ON ator.ref = n.actor_ref
+     WHERE n.channel_id = :canal AND n.status = 'digest'
+     ORDER BY n.level_weight DESC, n.alert_count DESC
      LIMIT :cap
     """
 )

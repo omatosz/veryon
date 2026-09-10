@@ -762,3 +762,89 @@ export function updateUser(
 ) {
   return request<ApiUser>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 }
+
+// --- Rastreamento de ator ---
+
+/** O semáforo. A tela pinta a partir daqui e nunca a partir do score: a regra
+ *  vive num lugar só, no backend. */
+export interface ApiActorDecision {
+  acao: 'bloquear' | 'investigar' | 'observar'
+  porque: string
+}
+
+export interface ApiActor {
+  ref: string
+  confidence: 'low' | 'medium' | 'high'
+  distinctiveness: number
+  ip_count: number
+  request_count: number
+  max_score: number
+  status: string
+  first_seen: string
+  last_seen: string
+  note: string | null
+  agente: string | null
+  decisao: ApiActorDecision
+}
+
+export interface ApiActorIP {
+  client_ip: string
+  first_seen: string
+  last_seen: string
+  request_count: number
+  /** Com quanta semelhança este IP entrou no ator, e a quebra por traço. É a
+   *  evidência que permite discordar da junção com dado na mão. */
+  similarity: number
+  match_detail: Record<string, unknown> | null
+  manual: boolean
+  bloqueado: boolean
+}
+
+export interface ApiActorDetail extends ApiActor {
+  traits: Record<string, unknown>
+  ips: ApiActorIP[]
+}
+
+export interface ApiActorEvent {
+  ts: string
+  fonte: 'honeypot' | 'alerta' | 'api' | 'resposta'
+  titulo: string
+  detalhe: string | null
+  nivel: string | null
+  ip: string | null
+}
+
+export function listActors(params: { status?: string; acao?: string } = {}) {
+  const qs = new URLSearchParams()
+  if (params.status) qs.set('status', params.status)
+  if (params.acao) qs.set('acao', params.acao)
+  const q = qs.toString()
+  return request<ApiActor[]>(`/actors${q ? `?${q}` : ''}`)
+}
+
+export function getActor(ref: string) {
+  return request<ApiActorDetail>(`/actors/${ref}`)
+}
+
+export function getActorTimeline(ref: string, dias = 30) {
+  return request<ApiActorEvent[]>(`/actors/${ref}/timeline?dias=${dias}`)
+}
+
+export function updateActor(ref: string, body: { note?: string; status?: string }) {
+  return request<ApiActor>(`/actors/${ref}`, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+/** Tira um IP do ator porque o analista discordou da junção. O laço não refaz
+ *  a ligação depois disso. */
+export function detachActorIp(ref: string, ip: string) {
+  return request<void>(`/actors/${ref}/ips/${encodeURIComponent(ip)}/detach`, { method: 'POST' })
+}
+
+/** Bloqueia todos os IPs do ator de uma vez. Só admin, e a API recusa com 422
+ *  quando o próprio Veryon não recomenda bloquear. */
+export function blockActor(ref: string) {
+  return request<{ bloqueados: string[]; recusados: { ip: string; motivo: string }[]; detalhe?: string }>(
+    `/actors/${ref}/block`,
+    { method: 'POST' },
+  )
+}

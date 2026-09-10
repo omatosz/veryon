@@ -44,6 +44,12 @@ def _linha_resumo(resumo: dict[str, Any]) -> str:
     if ip:
         partes.append(f"de {ip}")
 
+    # O ator entra depois do IP e nao no lugar dele: quem le de madrugada
+    # precisa do endereco para agir, e do ator para entender o tamanho.
+    ator = frase_do_ator(resumo)
+    if ator:
+        partes.append(f"[{ator}]")
+
     quantos = int(resumo.get("alert_count") or 1)
     if quantos > 1:
         partes.append(f"({quantos} ocorrencias agrupadas)")
@@ -51,11 +57,37 @@ def _linha_resumo(resumo: dict[str, Any]) -> str:
     return " ".join(partes)
 
 
+def frase_do_ator(resumo: dict[str, Any]) -> str | None:
+    """Como o ator aparece na mensagem, ou None quando nao ha ator.
+
+    Diz "mesmo padrao", nunca "mesma pessoa". O rastreamento afirma ferramenta
+    e comportamento, e a mensagem que sai de madrugada nao pode afirmar mais
+    do que o motor afirma. A confianca vai junto pelo mesmo motivo: um ator de
+    confianca baixa e uma pista, nao uma conclusao.
+    """
+    ref = resumo.get("actor_ref")
+    if not ref:
+        return None
+
+    frase = f"ator {ref}"
+    ips = int(resumo.get("actor_ips") or 0)
+    if ips > 1:
+        frase += f", mesmo padrao visto de {ips} IPs"
+    conf = resumo.get("actor_confidence")
+    if conf:
+        frase += f", confianca {CONFIANCA_EM_PORTUGUES.get(conf, conf)}"
+    return frase
+
+
+CONFIANCA_EM_PORTUGUES = {"high": "alta", "medium": "media", "low": "baixa"}
+
+
 def _detalhes(resumo: dict[str, Any]) -> list[tuple[str, str]]:
     """Pares rotulo/valor que acompanham o resumo, ja sem os vazios."""
     itens = [
         ("Regra", resumo.get("rule_id")),
         ("Origem", resumo.get("source_ip")),
+        ("Ator", frase_do_ator(resumo)),
         ("Severidade", resumo.get("level")),
         ("Ocorrencias", str(resumo.get("alert_count") or 1)),
         ("Tecnica MITRE", resumo.get("mitre_technique")),
@@ -171,6 +203,10 @@ def _linhas_digest(itens: list[dict[str, Any]]) -> tuple[str, list[str]]:
         parte = f"[{nivel}] {item.get('title') or 'Alerta'}"
         if item.get("source_ip"):
             parte += f" de {item['source_ip']}"
+        if item.get("actor_ref"):
+            ips = int(item.get("actor_ips") or 0)
+            parte += f" (ator {item['actor_ref']}"
+            parte += f", {ips} IPs)" if ips > 1 else ")"
         if quantos > 1:
             parte += f" x{quantos}"
         linhas.append(parte)

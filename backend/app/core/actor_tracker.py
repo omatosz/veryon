@@ -68,9 +68,13 @@ FETCH_REQS = text(
 
 FETCH_VINCULO = text(
     """
+    -- LEFT JOIN por causa do vinculo orfao: quando o analista separa um IP do
+    -- ator, a linha fica com manual ligado e sem dono. Com INNER JOIN ela
+    -- sumiria da consulta, o laco trataria o IP como desconhecido e refaria a
+    -- juncao que a pessoa acabou de desfazer.
     SELECT ai.id, ai.actor_id, ai.manual, a.ref
       FROM actor_ips ai
-      JOIN actors a ON a.id = ai.actor_id
+      LEFT JOIN actors a ON a.id = ai.actor_id
      WHERE ai.client_ip = :ip
     """
 )

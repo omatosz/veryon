@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, NavLink } from 'react-router-dom'
-import { Activity, Bell, Bug, FileText, HardDrive, LayoutGrid, LogOut, Radar, ShieldAlert, ShieldCheck, Telescope, Users, X } from 'lucide-react'
+import { Activity, Bell, Bug, FileText, HardDrive, LayoutGrid, LogOut, Radar, ShieldAlert, ShieldCheck, Telescope, Users, Fingerprint, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { getApiSummary, getPreventionSummary, getVulnSummary, listAlerts } from '@/lib/api'
@@ -69,6 +69,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       items: [
         { to: '/vulnerabilities', label: 'Vulnerabilidades', icon: Bug, badge: openVulnCount },
         { to: '/api-analysis', label: 'Análise de API', icon: Radar, badge: openApiCount },
+        { to: '/actors', label: 'Atores', icon: Fingerprint },
       ],
     },
     {

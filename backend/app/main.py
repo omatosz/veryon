@@ -9,6 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 
 from app.api import (
+    actors,
     alerts,
     api_analysis,
     auth,
@@ -84,6 +85,7 @@ app.include_router(prevention_api.router)
 app.include_router(notifications.router)
 app.include_router(retention_api.router)
 app.include_router(users.router)
+app.include_router(actors.router)
 
 
 def rotas_registradas() -> list[tuple[str, str]]:
@@ -117,6 +119,7 @@ async def on_startup():
             log.info("retencao: %s", "; ".join(resultado["mudancas"]))
     except Exception as exc:  # noqa: BLE001
         log.warning("retencao nao pode ser aplicada no boot: %s", exc)
+
     # Carrega antes de aceitar trafego: subir com a lista vazia deixaria uma
     # janela em que quem esta bloqueado passa.
     await blocklist.refresh()

@@ -57,6 +57,10 @@ class CanalIn(BaseModel):
     # fica entre min_level e este espera o resumo. Igualar os dois significa
     # "me interrompa com tudo que eu aceito receber".
     immediate_level: Literal["informational", "low", "medium", "high", "critical"] = "critical"
+    # Quando o IP de origem pertence a um ator conhecido, a mensagem agrupa
+    # por ator em vez de por IP. Ligado por padrao: sem ator conhecido a chave
+    # continua sendo regra mais IP, entao nao ha caso em que ligar isto piore.
+    group_by_actor: bool = True
     # Nasce desligado, igual toda politica de prevencao nasce em observacao.
     # Quem cadastra um canal ainda nao testou o endereco.
     enabled: bool = False
@@ -88,6 +92,7 @@ class CanalUpdate(BaseModel):
     target: str | None = None
     min_level: Literal["informational", "low", "medium", "high", "critical"] | None = None
     immediate_level: Literal["informational", "low", "medium", "high", "critical"] | None = None
+    group_by_actor: bool | None = None
     enabled: bool | None = None
 
 
@@ -98,6 +103,7 @@ class CanalOut(BaseModel):
     target: str
     min_level: str
     immediate_level: str
+    group_by_actor: bool
     enabled: bool
     last_digest_at: datetime | None = None
 
@@ -108,21 +114,22 @@ class ResultadoTeste(BaseModel):
 
 
 SELECT_CANAIS = text(
-    "SELECT id, name, kind, target, min_level, immediate_level, enabled, last_digest_at "
+    "SELECT id, name, kind, target, min_level, immediate_level, group_by_actor, enabled, last_digest_at "
     "FROM notification_channels ORDER BY name"
 )
 
 SELECT_CANAL = text(
-    "SELECT id, name, kind, target, min_level, immediate_level, enabled, last_digest_at "
+    "SELECT id, name, kind, target, min_level, immediate_level, group_by_actor, enabled, last_digest_at "
     "FROM notification_channels WHERE id = :id"
 )
 
 INSERT_CANAL = text(
     """
     INSERT INTO notification_channels
-        (name, kind, target, min_level, immediate_level, enabled)
-    VALUES (:name, :kind, :target, :min_level, :immediate_level, :enabled)
-    RETURNING id, name, kind, target, min_level, immediate_level, enabled, last_digest_at
+        (name, kind, target, min_level, immediate_level, group_by_actor, enabled)
+    VALUES (:name, :kind, :target, :min_level, :immediate_level, :group_by_actor, :enabled)
+    RETURNING id, name, kind, target, min_level, immediate_level, group_by_actor,
+              enabled, last_digest_at
     """
 )
 
@@ -191,7 +198,7 @@ async def atualizar_canal(
             text(
                 f"UPDATE notification_channels SET {sets} WHERE id = :id "
                 "RETURNING id, name, kind, target, min_level, immediate_level, "
-                "enabled, last_digest_at"
+                "group_by_actor, enabled, last_digest_at"
             ),
             {**campos, "id": canal_id},
         )
