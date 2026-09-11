@@ -68,6 +68,13 @@ validado com `pysigma`. Cada regra é mapeada pro **MITRE ATT&CK**, o dicionári
 padrão pra descrever técnica de ataque: T1110 é sempre força bruta, não importa a
 ferramenta que o atacante usou.
 
+Regra Sigma pura casa um evento por vez, e tem ataque que só existe na repetição: uma
+senha errada é erro de digitação, cinco em cinco minutos é força bruta. Por isso o motor
+aceita um bloco `threshold` na regra, dizendo por qual campo agrupar, quantos eventos e
+em quanto tempo. A regra de força bruta do honeypot usa isso, e cinco falhas do mesmo IP
+em cinco minutos viram **um** alerta critical, em vez de cinco alertas soltos que
+ninguém lê.
+
 ### Rastreia vulnerabilidade com ciclo de vida
 
 Nmap e Nuclei varrem os serviços internos e o alvo vulnerável. O resultado não é uma
@@ -350,10 +357,10 @@ SSH:
 ssh -p 2222 -o StrictHostKeyChecking=no root@localhost
 ```
 
-Digite qualquer senha (o honeypot aceita), e em poucos segundos um alerta **high**
-aparece na tela de Alertas. Use uma senha descartável: o honeypot grava em texto claro
-tudo que é digitado na sessão, então não vale a pena usar ali uma senha real de outro
-serviço.
+Digite qualquer senha menos `root` ou `123456`, que o honeypot recusa de propósito para
+o usuário `root`, e em poucos segundos um alerta **high** aparece na tela de Alertas.
+Use uma senha descartável: o honeypot grava em texto claro tudo que é digitado na
+sessão, então não vale a pena usar ali uma senha real de outro serviço.
 
 ---
 
@@ -371,9 +378,11 @@ custo é uma busca em set na memória.
 
 **Ordem de middleware é carregada.** O bloqueio fica por dentro do CORS de propósito:
 por fora, o 403 sairia sem cabeçalho CORS e o navegador mostraria erro de CORS no
-lugar do motivo real. Já o coletor de tráfego fica por fora do bloqueio e do
-limitador de taxa, pra registrar também a requisição que levou 403 e a que levou 429.
-Tentativa recusada é justamente o que interessa numa investigação.
+lugar do motivo real. Já o coletor de tráfego fica por fora do bloqueio, da
+autenticação e do limitador de taxa, pra registrar também a requisição que levou 401,
+403 ou 429. Tentativa recusada é justamente o que interessa numa investigação: um
+atacante sondando a API leva 401 em tudo que tenta, e precisa aparecer no painel mesmo
+assim.
 
 **Savepoint por política no motor de prevenção.** Capturar a exceção em Python não
 basta: consulta que falha aborta a transação do Postgres, e daí toda política
@@ -385,6 +394,20 @@ pior tipo de falha: o sistema parece vivo e não faz nada.
 poucos segundos e troca o retrato inteiro de uma vez, então quem está lendo no meio
 do caminho sempre vê estado coerente. Se o banco piscar, o retrato anterior é
 mantido: é melhor bloquear a mais do que abrir a porta porque uma consulta falhou.
+
+**Coletor que sobrevive à rotação do log.** O Cowrie troca de `cowrie.json` por dia, e
+o Linux troca de `auth.log` por logrotate. Quem abre o arquivo uma vez e segue lendo
+daquele handle fica preso no arquivo renomeado, que não recebe mais nada, e para de
+coletar sem dar erro nenhum. É a pior falha possível num coletor: o ataque acontece, o
+terminal responde, o honeypot registra no próprio log, e o painel fica vazio sem nada
+indicando o porquê. Quando a leitura volta vazia, os coletores checam o inode do
+caminho; se o arquivo trocou de identidade ou encolheu, reabrem do início.
+
+**O alerta guarda o pico, o achado mostra o agora.** A análise de API pontua uma janela
+deslizante de dez minutos. Quando a janela anda, o score cai sozinho, e atualizar o
+alerta com o valor novo rebaixaria para high um ataque que chegou a 100, apagando do
+histórico o que de fato aconteceu. O alerta só aceita atualização que suba o score. O
+valor do momento continua na tela de Análise de API, que lê o achado.
 
 **Deduplicação por `(ativo, assinatura)`.** A assinatura de uma porta aberta exclui a
 versão do serviço de propósito. Assim, atualizar o Postgres muda o título do achado

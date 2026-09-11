@@ -175,7 +175,11 @@ ambiente: portas abertas, serviços expostos, cabeçalhos faltando.
 Aqui o alvo é a própria API do Veryon, que observa o próprio tráfego. Você manda
 requisição com padrão de ataque na query e o motor de análise pontua.
 
-**Terminal:** qualquer um com `curl`.
+**Terminal:** qualquer um com `curl`. No PowerShell do Windows, escreva `curl.exe`, com
+o `.exe` no fim: ali o `curl` pelado é apelido do `Invoke-WebRequest`, que é outro
+comando e estoura erro vermelho quando a resposta não é 2xx. Como estas requisições
+respondem 401 de propósito, o apelido faz parecer que o ataque falhou quando ele saiu
+normalmente.
 
 SQL injection na query:
 
@@ -195,12 +199,24 @@ Path traversal:
 curl "http://localhost:8000/vulnerabilities?asset_type=../../../../etc/passwd"
 ```
 
+As três respondem `{"detail":"Not authenticated"}`, e está certo. Essas rotas exigem
+login e você está mandando requisição sem token, igual a um atacante que ainda não
+entrou. O 401 não atrapalha a detecção: o coletor de tráfego roda por fora da
+autenticação e registra a requisição na entrada, então o payload é lido e marcado antes
+de a rota recusar. Atacante de verdade também leva 401 e fica marcado do mesmo jeito.
+
 Repare que os payloads vão percent-encoded (`%27` é a aspa, `%20` o espaço). É assim
 que um atacante de verdade manda, e o motor decodifica antes de casar o padrão.
 
 **O que esperar:** em até 10 segundos, na tela de **Análise de API**, aparece um
 achado pro seu IP com o sinal **Tentativa de injeção** (peso 40) e a lista exata dos
-padrões detectados. Clique no achado pra ver as requisições que o geraram.
+padrões detectados, no formato `padrões detectados: sqli (3x)`. Clique no achado pra
+ver as requisições que o geraram.
+
+Repare onde o achado aparece: na tela de **Análise de API**, não na de Alertas.
+Injeção sozinha soma 40, e alerta de API só nasce a partir de 70. Essa simulação para
+no achado de propósito. Pra ver o alerta nascer, ela precisa somar com outro sinal, que
+é exatamente o que a seção 6 faz.
 
 ---
 
@@ -334,8 +350,9 @@ primeiro pacote até a resposta, rodando na sua máquina.
 
 ## Quando o ataque não aparece
 
-O ataque roda, o terminal responde, mas nada surge nos Alertas nem nos Eventos. Quase
-sempre é um destes três, e os três nascem do hábito de reconstruir a stack toda hora.
+O ataque roda, o terminal responde, mas nada surge nos Alertas nem nos Eventos. Os três
+primeiros casos abaixo nascem do hábito de reconstruir a stack toda hora. O quarto é
+outra coisa: o ataque funcionou e você está olhando a tela errada.
 
 **1. Porta do honeypot presa num container morto.** No Docker Desktop do Windows, depois
 que a máquina dorme ou o Docker se atualiza, o encaminhamento da porta `2222` pode ficar
@@ -362,6 +379,14 @@ com `ssh-keygen -R "[localhost]:2222"`.
 **3. Relógios fora de sincronia.** Se o host e os containers ficarem com horas muito
 diferentes (também comum depois que a máquina dorme), eventos entram com data no passado e
 somem das telas por janela de tempo. `wsl --shutdown` e reabrir o Docker Desktop realinha.
+
+**4. Ataque de API que não vira alerta.** Achado de API e alerta são coisas diferentes.
+Injeção sozinha soma 40 pontos, e alerta de API só nasce a partir de 70, então ela
+aparece como achado na tela de **Análise de API**, com sinal e evidência, e não na de
+Alertas. Não é falha, é o limiar funcionando. Pra ver o alerta nascer, some sinais no
+mesmo IP rodando a seção 6 junto com a 5. E se você está no PowerShell, confira se usou
+`curl.exe`: o `curl` sem o `.exe` é outro comando, estoura erro vermelho no 401 e faz
+parecer que a requisição nem saiu, quando ela saiu e foi registrada.
 
 Se nada disso for o caso, confirme que a cadeia está no ar e que o coletor está lendo o
 honeypot: `docker compose ps` e `docker compose logs collector --tail 20` (deve aparecer
