@@ -37,14 +37,40 @@ def follow(path):
         print(f"aguardando arquivo de log em {path}...", flush=True)
         time.sleep(2)
 
-    with open(path, "r") as f:
-        f.seek(0, os.SEEK_END)
+    # Na primeira abertura pula o historico (SEEK_END): quem sobe o collector
+    # quer o que vier a partir de agora, nao reprocessar dias de log.
+    f = open(path, "r")
+    f.seek(0, os.SEEK_END)
+    inode = os.fstat(f.fileno()).st_ino
+    try:
         while True:
             line = f.readline()
-            if not line:
+            if line:
+                yield line
+                continue
+
+            # readline vazio pode ser so o fim do arquivo, ou o log ter
+            # rotacionado. O cowrie troca de arquivo por dia: cowrie.json vira
+            # cowrie.json.DATA e um novo cowrie.json nasce. O handle antigo
+            # segue preso no arquivo que foi renomeado, que nao recebe mais
+            # nada, e o collector para de ver evento sem dar erro. Detecta pelo
+            # inode do caminho: se mudou (arquivo novo) ou o arquivo encolheu
+            # (foi truncado), reabre. Agora do inicio, porque o arquivo novo
+            # comeca do zero e o comeco do dia importa.
+            try:
+                st = os.stat(path)
+            except FileNotFoundError:
                 time.sleep(0.5)
                 continue
-            yield line
+            if st.st_ino != inode or st.st_size < f.tell():
+                print("cowrie.json rotacionado, reabrindo do inicio", flush=True)
+                f.close()
+                f = open(path, "r")
+                inode = os.fstat(f.fileno()).st_ino
+                continue
+            time.sleep(0.5)
+    finally:
+        f.close()
 
 
 def main():

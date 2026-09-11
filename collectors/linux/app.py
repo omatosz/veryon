@@ -96,14 +96,33 @@ def follow(path):
         time.sleep(10)
 
     print(f"arquivo encontrado, seguindo {path}", flush=True)
-    with open(path, "r") as f:
-        f.seek(0, os.SEEK_END)
+    # Comeca do fim (SEEK_END) e reabre quando o arquivo rotaciona. O logrotate
+    # renomeia auth.log para auth.log.1 e cria um novo auth.log; o handle antigo
+    # fica preso no arquivo renomeado e o coletor para de ver linha sem dar erro.
+    # Detecta pelo inode do caminho, do mesmo jeito que o coletor do cowrie.
+    f = open(path, "r")
+    f.seek(0, os.SEEK_END)
+    inode = os.fstat(f.fileno()).st_ino
+    try:
         while True:
             line = f.readline()
-            if not line:
+            if line:
+                yield line
+                continue
+            try:
+                st = os.stat(path)
+            except FileNotFoundError:
                 time.sleep(0.5)
                 continue
-            yield line
+            if st.st_ino != inode or st.st_size < f.tell():
+                print("auth.log rotacionado, reabrindo do inicio", flush=True)
+                f.close()
+                f = open(path, "r")
+                inode = os.fstat(f.fileno()).st_ino
+                continue
+            time.sleep(0.5)
+    finally:
+        f.close()
 
 
 def main():
