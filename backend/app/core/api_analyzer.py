@@ -128,12 +128,18 @@ INSERT_ALERT = text(
     """
 )
 
+# O alerta guarda o pico, o achado guarda o agora. Sem o filtro de score, a
+# janela de 10 minutos andava, o score caia e o UPDATE rebaixava o alerta: um
+# ataque que chegou a 100 (critical) virava high 85 minutos depois, e o
+# relatorio e a contagem de criticos perdiam o que de fato aconteceu. O valor
+# atual continua na tela de Analise de API, que le api_findings.
 UPDATE_ALERT = text(
     """
     UPDATE alerts
        SET level = :level, title = :title, description = :description,
            mitre_technique = :mitre, payload = CAST(:payload AS jsonb)
      WHERE id = :alert_id
+       AND COALESCE((payload->>'score')::numeric, 0) <= :score
     """
 )
 
@@ -256,7 +262,9 @@ async def analyze_once() -> dict:
             else:
                 # Alerta ja aberto pro mesmo chamador: atualiza em vez de criar
                 # outro. Um atacante insistente nao pode virar cem alertas.
-                await db.execute(UPDATE_ALERT, {**comum, "alert_id": alert_id})
+                await db.execute(
+                    UPDATE_ALERT, {**comum, "alert_id": alert_id, "score": result["score"]}
+                )
 
         await db.execute(
             CLEAR_STALE,

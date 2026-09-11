@@ -8,6 +8,7 @@ import { ErrorState, LoadingState } from '@/components/ui/async-state'
 import { StatPill } from '@/components/ui/stat-pill'
 import { getEnrichment, getSummary, listAlerts, type ApiAlert, type ApiEnrichment, type ApiSummary } from '@/lib/api'
 import { countryFlag } from '@/lib/format'
+import { temReputacaoPublica } from '@/lib/ip'
 
 const POLL_INTERVAL_MS = 5000
 
@@ -51,10 +52,17 @@ export function DashboardPage() {
     if (!summary) return
     let cancelled = false
     const topIps = summary.top_src_ips.slice(0, 6)
-    Promise.allSettled(topIps.map((ip) => getEnrichment(ip.src_ip))).then((results) => {
+    // Só pergunta de quem pode ter reputação pública. O resto fica null e a
+    // linha mostra "IP privado / sem reputação pública", como já mostrava
+    // depois do 404, só que agora sem o 404.
+    const consultaveis = topIps.filter((ip) => temReputacaoPublica(ip.src_ip))
+    Promise.allSettled(consultaveis.map((ip) => getEnrichment(ip.src_ip))).then((results) => {
       if (cancelled) return
       const map: Record<string, ApiEnrichment | null> = {}
-      topIps.forEach((ip, i) => {
+      topIps.forEach((ip) => {
+        map[ip.src_ip] = null
+      })
+      consultaveis.forEach((ip, i) => {
         const r = results[i]
         map[ip.src_ip] = r.status === 'fulfilled' ? r.value : null
       })
@@ -85,7 +93,7 @@ export function DashboardPage() {
   }
 
   const openAlertCount = alerts.filter((a) => a.status !== 'closed').length
-  const highCount = summary.alerts_by_level.high ?? 0
+  const graveCount = (summary.alerts_by_level.critical ?? 0) + (summary.alerts_by_level.high ?? 0)
   const eventsBySource = Object.entries(summary.events_by_source)
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
@@ -96,7 +104,7 @@ export function DashboardPage() {
       <div className="grow overflow-y-auto px-4 pb-14 pt-6 sm:px-8">
         <div className="flex flex-wrap gap-3">
           <StatPill icon={ShieldAlert} tone="text-destructive" bg="bg-destructive/12" value={openAlertCount} label="alertas abertos" hint="no momento" />
-          <StatPill icon={Radar} tone="text-warning" bg="bg-warning/12" value={highCount} label="alertas high" hint="no total" />
+          <StatPill icon={Radar} tone="text-warning" bg="bg-warning/12" value={graveCount} label="alertas critical e high" hint="no total" />
           <StatPill icon={Activity} tone="text-primary" bg="bg-primary/12" value={summary.total_events} label="eventos ingeridos" hint="total no banco" />
         </div>
 

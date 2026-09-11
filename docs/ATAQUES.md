@@ -41,6 +41,12 @@ O Cowrie grava em texto claro tudo que você digita numa sessão, **senha inclus
 Se você logar no honeypot digitando uma senha que usa de verdade em outro lugar, ela
 fica gravada no log do container. Use sempre senha descartável nos testes.
 
+O honeypot aceita quase qualquer senha, com duas exceções de propósito: para o usuário
+`root`, ele **recusa** as senhas `root` e `123456`. São as duas senhas mais óbvias, e
+deixá-las na lista de recusa serve para separar quem quer entrar (usa outra senha e
+consegue) de quem está só chutando as óbvias (leva falha atrás de falha). Isso importa
+nas duas primeiras simulações: uma quer o login dando certo, a outra quer ele falhando.
+
 ---
 
 ## 1. Login no honeypot SSH
@@ -59,8 +65,9 @@ PowerShell do Windows, troque `/dev/null` por `NUL`). Se você já pegou o erro
 `REMOTE HOST IDENTIFICATION HAS CHANGED`, limpe a entrada velha uma vez com
 `ssh-keygen -R "[localhost]:2222"`.
 
-Quando pedir senha, digite qualquer coisa (`123456`, `senha`, o que for). O honeypot
-aceita e te joga num shell falso. Digite alguns comandos pra deixar rastro:
+Quando pedir senha, digite qualquer coisa **menos** `root` ou `123456`, que o honeypot
+recusa (por exemplo `entrar-2026`). Ele aceita e te joga num shell falso. Digite alguns
+comandos pra deixar rastro:
 
 ```bash
 whoami
@@ -85,28 +92,32 @@ alerta **high** com título "Login bem-sucedido no honeypot", técnica MITRE **T
 
 ## 2. Força bruta de SSH
 
-Simula um atacante testando senha atrás de senha. Precisa do `hydra`, que já vem em
-distros de pentest como Kali, ou instala com `apt install hydra`.
+Simula um atacante chutando senha atrás de senha, todas erradas.
 
-**Terminal:** Linux ou WSL.
+Aqui a senha certa é `123456`: como o honeypot recusa ela de propósito para o `root`
+(veja o aviso acima), cada tentativa vira uma **falha**, que é o que a força bruta
+precisa gerar.
+
+**Terminal:** qualquer um com cliente SSH.
+
+Rode o comando abaixo e, quando pedir a senha, digite `123456`. Repita **cinco vezes ou
+mais**, na mesma janela de cinco minutos:
+
+```bash
+ssh -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost
+```
+
+Se tiver o `hydra` (vem no Kali, ou `apt install hydra`), ele faz a rajada sozinho:
 
 ```bash
 hydra -l root -P /usr/share/wordlists/rockyou.txt -t 4 ssh://localhost:2222
 ```
 
-Se não tiver o `hydra`, um laço no shell faz o mesmo efeito de rajada:
-
-```bash
-for i in $(seq 1 15); do
-  ssh -p 2222 -o StrictHostKeyChecking=no -o PreferredAuthentications=password \
-      root@localhost "exit" 2>/dev/null
-done
-```
-
-**O que esperar no painel:** vários eventos de tentativa de login na tela de
-**Eventos**, e o alerta de força bruta na tela de **Alertas**. Na tela de
-**Prevenção**, a política **SSH-BRUTE** reconhece o caso (o contador de casos sobe).
-Como ela nasce em modo observação, ela registra o que faria sem bloquear.
+**O que esperar no painel:** os eventos de tentativa na tela de **Eventos**, e, quando
+cinco falhas do mesmo IP se juntam em cinco minutos, um alerta **critical** "Força bruta
+contra o honeypot SSH/Telnet" na tela de **Alertas**. É esse alerta critical que a
+política **SSH-BRUTE**, na tela de **Prevenção**, reconhece. Como ela nasce em modo
+observação, registra o que faria sem bloquear.
 
 ---
 
@@ -128,8 +139,10 @@ A conexão é recusada, porque o `iptables` dentro do namespace do Cowrie derrub
 pacote. E qualquer requisição na API a partir daquele IP também leva 403, porque o
 middleware ASGI recusa antes de chegar na rota.
 
-Pra desbloquear, use a tela de **Prevenção**, aba **Trilha de ações**, botão
-**Desfazer**. O bloqueio sai na hora.
+Pra desbloquear um IP que **você** bloqueou pela tela, o botão fica na própria tela de
+**Alertas**: abra o alerta de novo e clique em **Desbloquear**. A aba **Trilha de
+ações** da tela de **Prevenção** desfaz o que uma *política* bloqueou sozinha, não o
+bloqueio manual. Cada um se desfaz onde foi feito.
 
 ---
 
@@ -212,10 +225,13 @@ for i in $(seq 1 15); do
 done
 ```
 
-**O que esperar:** o achado de API pro seu IP soma os sinais **Varredura de rotas**
-(peso 25) e **Rajada de falha de autenticação** (peso 30). Quando a soma passa de 70,
-um alerta automático nasce na tela de **Alertas**. Passando de 90, o caso fica
-disponível pra prevenção tratar, e aparece na **fila crítica**.
+**O que esperar:** o achado de API pro seu IP soma três sinais, não dois. **Varredura
+de rotas** (peso 25) pelas rotas inexistentes, **Rajada de falha de autenticação** (peso
+30) pelos 401 e 429 no login, e **Acesso a endpoint sensível** (peso 15), porque
+`/admin/...` conta como rota sensível. A soma dá 70, e 70 já é o suficiente: um alerta
+automático nasce na tela de **Alertas**. Se você juntar a injeção da seção 5 no mesmo
+IP, a soma passa de 90, o caso fica disponível pra prevenção tratar e aparece na
+**fila crítica**.
 
 ---
 
@@ -291,6 +307,12 @@ No gráfico de colunas, clique no filtro **Origem dos IPs**. O cartão gira e re
 mapa-múndi. IP público identificado vira ponto no país de origem; tráfego de rede
 interna e IP não identificado são contados à parte, porque um não tem país pra
 descobrir e o outro ainda não foi enriquecido.
+
+Rodando tudo na sua máquina, espere o mapa **vazio**, com todo o tráfego caindo na
+contagem de rede interna. O ataque ao honeypot sai sempre do mesmo IP interno do Docker,
+e as faixas usadas contra a API (`203.0.113.x`, `198.51.100.x`) são reservadas para
+documentação, então não têm país. O mapa se enche quando o Veryon recebe tráfego de IP
+público de verdade, num honeypot exposto ou lendo o log de uma aplicação real.
 
 ---
 

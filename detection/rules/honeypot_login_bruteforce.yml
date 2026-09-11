@@ -1,0 +1,27 @@
+title: Força bruta contra o honeypot SSH/Telnet
+id: 4f99be61-80e9-4782-8d54-89d80ee4f44e
+status: stable
+description: >
+  5 ou mais senhas recusadas pelo honeypot, vindas do mesmo IP, numa janela
+  de 5 minutos. O honeypot não tem usuário legítimo, então não existe versão
+  inocente desse padrão. Por isso a severidade é crítica, e é ela que a
+  política SSH-BRUTE da prevenção espera para reconhecer o caso.
+logsource:
+  category: honeypot
+  service: cowrie
+detection:
+  selection:
+    event_type: cowrie.login.failed
+  condition: selection
+# Mesma extensao de limiar da linux_ssh_bruteforce.yml (ver
+# detection/sigma_eval.py). Sem esta regra, senha recusada no honeypot virava
+# evento e nunca alerta, e a SSH-BRUTE nao tinha com o que casar.
+threshold:
+  group_by: src_ip
+  count: 5
+  timeframe_minutes: 5
+level: critical
+tags:
+  - attack.credential_access
+  - attack.t1110
+  - attack.t1110.001

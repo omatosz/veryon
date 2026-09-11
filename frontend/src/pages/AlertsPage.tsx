@@ -19,6 +19,7 @@ import {
 } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { countryFlag, formatDateTime, formatTime } from '@/lib/format'
+import { temReputacaoPublica } from '@/lib/ip'
 import { severityMeta, sourceMeta, statusMeta, type AlertStatus, type EventSource, type Severity } from '@/lib/mock-data'
 
 type SeverityFilter = Severity | 'all'
@@ -94,7 +95,11 @@ export function AlertsPage() {
   const fetchedIps = useRef(new Set<string>())
 
   useEffect(() => {
-    const uniqueIps = [...new Set(alerts.map((a) => a.source_ip).filter((ip): ip is string => !!ip))].slice(0, 15)
+    // IP privado ou reservado nunca tem reputação pública: o threatintel nem
+    // consulta. Perguntar mesmo assim só gerava 404 no console a cada carga.
+    const uniqueIps = [...new Set(alerts.map((a) => a.source_ip).filter((ip): ip is string => !!ip))]
+      .filter(temReputacaoPublica)
+      .slice(0, 15)
     const toFetch = uniqueIps.filter((ip) => !fetchedIps.current.has(ip))
     if (toFetch.length === 0) return
     toFetch.forEach((ip) => fetchedIps.current.add(ip))
@@ -128,7 +133,8 @@ export function AlertsPage() {
   const stats = useMemo(
     () => ({
       open: alerts.filter((a) => a.status === 'open').length,
-      high: alerts.filter((a) => a.level === 'high').length,
+      // Critical entra junto: contar só high escondia justamente os piores.
+      graves: alerts.filter((a) => a.level === 'critical' || a.level === 'high').length,
       total: alerts.length,
     }),
     [alerts],
@@ -194,7 +200,7 @@ export function AlertsPage() {
     <AppShell title="Alertas">
       <div className="flex shrink-0 flex-wrap gap-3 px-4 pt-5 sm:px-8">
         <StatPill icon={ShieldAlert} tone="text-destructive" bg="bg-destructive/12" value={stats.open} label="abertos" hint="requer triagem" />
-        <StatPill icon={Radar} tone="text-warning" bg="bg-warning/12" value={stats.high} label="high" hint="nesse filtro" />
+        <StatPill icon={Radar} tone="text-warning" bg="bg-warning/12" value={stats.graves} label="critical e high" hint="nesse filtro" />
         <StatPill icon={ShieldCheck} tone="text-primary" bg="bg-primary/12" value={stats.total} label="no total" hint="nesse filtro" />
       </div>
 
@@ -203,6 +209,9 @@ export function AlertsPage() {
           <span className="mr-1 text-[11.5px] uppercase tracking-wide text-muted-foreground">Severidade</span>
           <FilterPill active={severityFilter === 'all'} onClick={() => setSeverityFilter('all')}>
             Todas
+          </FilterPill>
+          <FilterPill active={severityFilter === 'critical'} onClick={() => setSeverityFilter('critical')} activeColor="var(--destructive)">
+            Critical
           </FilterPill>
           <FilterPill active={severityFilter === 'high'} onClick={() => setSeverityFilter('high')} activeColor="var(--destructive)">
             High

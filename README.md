@@ -328,8 +328,13 @@ os dados do banco, use `docker compose down -v`.
 | **Eventos** | Feed bruto de tudo que foi ingerido, antes de qualquer regra rodar em cima. |
 | **Vulnerabilidades** | Achados com ciclo de vida, score de risco do parque, e o botão que pede uma varredura na hora. |
 | **Análise de API** | Chamadores pontuados pelos oito sinais, com as requisições que geraram cada score, e o inventário de rotas separando conhecida de fantasma. |
+| **Atores** | Junta os IPs de um mesmo atacante pelo comportamento, para o bloqueio não cair quando ele troca de endereço. Recomenda a ação em vez de mostrar pontuação crua. |
 | **Prevenção** | Fila crítica das três origens juntas, as dez políticas com simulação, e a trilha de auditoria com desfazer. |
-| **Threat Intel** | Consulta de reputação pública de um IP. |
+| **Notificações** | O canal de saída: e-mail, Discord, Slack, Teams e webhook, com três caminhos por severidade e botão de teste. |
+| **Threat Intel** | Consulta de reputação pública de um IP no AbuseIPDB, VirusTotal e OTX. |
+| **Relatórios** | Como gerar o relatório SOC em HTML e PDF, que sai por um serviço à parte, sob demanda. |
+| **Armazenamento** | Quanto o banco ocupa e quando cada tabela comprime e apaga, com os prazos vindos do `.env`. |
+| **Usuários** | Só para admin. Dois papéis, analista e administrador, com o papel lido do banco a cada requisição. |
 
 ---
 

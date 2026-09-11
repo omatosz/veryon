@@ -8,6 +8,7 @@ import { StatPill } from '@/components/ui/stat-pill'
 import { cn } from '@/lib/utils'
 import { getEnrichment, listEvents, type ApiEnrichment, type ApiEvent } from '@/lib/api'
 import { countryFlag, formatTime } from '@/lib/format'
+import { temReputacaoPublica } from '@/lib/ip'
 import { sourceMeta, type EventSource } from '@/lib/mock-data'
 
 type SourceFilter = EventSource | 'all'
@@ -54,7 +55,10 @@ export function EventsPage() {
   const fetchedIps = useRef(new Set<string>())
 
   useEffect(() => {
-    const uniqueIps = [...new Set(events.map((e) => e.src_ip).filter((ip): ip is string => !!ip))].slice(0, 15)
+    // Mesmo motivo da tela de alertas: IP privado não tem reputação pública.
+    const uniqueIps = [...new Set(events.map((e) => e.src_ip).filter((ip): ip is string => !!ip))]
+      .filter(temReputacaoPublica)
+      .slice(0, 15)
     const toFetch = uniqueIps.filter((ip) => !fetchedIps.current.has(ip))
     if (toFetch.length === 0) return
     toFetch.forEach((ip) => fetchedIps.current.add(ip))

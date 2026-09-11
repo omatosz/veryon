@@ -103,12 +103,32 @@ SQL_ALERT_RULE = """
 """
 SQL_ALERT_RULE_SOURCES = " AND source_event_type LIKE ANY(:sources)"
 
+# Reincidente e quem VOLTA depois de liberado. Contar so os bloqueios fazia um
+# IP liberado duas vezes semanas atras continuar reincidente para sempre, parado
+# ou nao: em observacao isso enchia a trilha a cada ciclo, e em vigor viraria
+# banimento permanente. Agora ele precisa ter aparecido de novo depois da
+# ultima liberacao, na ultima hora. O limite fixo de 60 minutos vai repetido ao
+# lado do GREATEST para o Timescale conseguir descartar bloco antigo no plano.
 SQL_REPEAT = """
-    SELECT ip, count(*) AS vezes
-      FROM blocked_ips
-     WHERE unblocked_at IS NOT NULL
-     GROUP BY ip
-    HAVING count(*) >= :min_blocks
+    WITH liberados AS (
+        SELECT ip, count(*) AS vezes, max(unblocked_at) AS liberado_em
+          FROM blocked_ips
+         WHERE unblocked_at IS NOT NULL
+         GROUP BY ip
+        HAVING count(*) >= :min_blocks
+    )
+    SELECT l.ip, l.vezes
+      FROM liberados l
+     WHERE EXISTS (
+               SELECT 1 FROM raw_events e
+                WHERE e.src_ip = l.ip
+                  AND e.ts > now() - interval '60 minutes'
+                  AND e.ts > l.liberado_em)
+        OR EXISTS (
+               SELECT 1 FROM api_requests r
+                WHERE r.client_ip = l.ip
+                  AND r.ts > now() - interval '60 minutes'
+                  AND r.ts > l.liberado_em)
 """
 
 SQL_THREAT_INTEL = """
@@ -184,7 +204,7 @@ async def _eval_alert_rule(db, params) -> list[Match]:
 async def _eval_repeat_offender(db, params) -> list[Match]:
     rows = (await db.execute(text(SQL_REPEAT), {"min_blocks": params.get("min_blocks", 2)})).all()
     return [
-        Match(ip, f"já foi bloqueado e liberado {vezes} vez(es)", {"bloqueios": vezes})
+        Match(ip, f"voltou depois de bloqueado e liberado {vezes} vez(es)", {"bloqueios": vezes})
         for ip, vezes in rows
     ]
 

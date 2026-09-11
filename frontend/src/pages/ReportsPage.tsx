@@ -1,93 +1,73 @@
-import { CalendarClock, FileDown, FileText, Layers, Sparkles } from 'lucide-react'
+import { FileText, FolderOpen, ListChecks, Terminal } from 'lucide-react'
 
 import { AppShell } from '@/components/layout/AppShell'
-import { StatPill } from '@/components/ui/stat-pill'
-import { reports } from '@/lib/mock-data'
+
+// A tela mostrava dois relatórios, contagens e botões de download vindos de
+// mock-data.ts, e nada disso existia. Enquanto não houver rota de API para
+// listar e baixar (está no roadmap do README), o honesto é dizer como gerar e
+// onde o arquivo cai, em vez de inventar número.
+const PASSOS = [
+  {
+    icone: Terminal,
+    titulo: 'Como gerar',
+    texto: 'Num terminal (Git Bash ou PowerShell), dentro da pasta do projeto:',
+    codigo: 'docker compose --profile tools run --rm reports',
+    rodape: 'O padrão são os últimos 7 dias. Para outro período, acrescente --days 30 no fim do comando.',
+  },
+  {
+    icone: FolderOpen,
+    titulo: 'Onde o arquivo cai',
+    texto: 'Na pasta reports/output, dentro do projeto. Sai um HTML e um PDF, com data e hora no nome.',
+    codigo: 'reports/output/relatorio-soc-AAAAMMDD-HHMMSS.pdf',
+    rodape: 'A pasta está no .gitignore: relatório gerado não vai para o repositório.',
+  },
+  {
+    icone: ListChecks,
+    titulo: 'O que tem dentro',
+    texto: 'Eventos do período, alertas por severidade, técnicas MITRE que apareceram e achados do scanner.',
+    codigo: null,
+    rodape: 'O serviço de relatório não fica ligado: sobe, gera e sai. Por isso ele não aparece no docker compose ps.',
+  },
+]
 
 export function ReportsPage() {
-  const latest = reports[0]
   return (
     <AppShell title="Relatórios">
       <div className="grow overflow-y-auto px-4 pb-14 pt-7 sm:px-8">
-        <div className="flex flex-wrap gap-3">
-          <StatPill icon={FileText} tone="text-primary" bg="bg-primary/12" value={reports.length} label="relatórios gerados" hint="ao total" />
-          <StatPill icon={CalendarClock} tone="text-chart-4" bg="bg-chart-4/12" value={latest?.generatedAt ?? '—'} label="último gerado" hint={latest?.periodLabel ?? ''} />
-          <StatPill icon={Layers} tone="text-warning" bg="bg-warning/12" value={latest?.totalAlerts ?? 0} label="alertas no último" hint={`${latest?.highCount ?? 0} high`} />
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-5.5">
+        <div className="flex items-start gap-3.5 rounded-xl border border-border bg-card p-5.5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <FileText className="h-[18px] w-[18px] text-primary" strokeWidth={1.75} />
+          </div>
           <div>
-            <h2 className="font-heading text-[14.5px] font-semibold text-foreground">Gerar novo relatório</h2>
+            <h2 className="font-heading text-[14.5px] font-semibold text-foreground">
+              O relatório sai pelo terminal, não por esta tela
+            </h2>
             <p className="mt-1 text-[12.5px] text-muted-foreground">
-              Consolida eventos, alertas, técnicas MITRE e achados de scanner do período em PDF/HTML.
+              Ainda não existe rota de API para listar ou baixar relatório, então esta tela não mostra contagem
+              nem arquivo: qualquer número aqui seria inventado. O relatório de verdade é gerado por um serviço
+              à parte, sob demanda, em HTML e PDF.
             </p>
           </div>
-          <button
-            type="button"
-            disabled
-            title="Disponível quando o backend estiver conectado"
-            className="flex h-10 shrink-0 items-center gap-2 rounded-lg bg-primary px-4 font-heading text-sm font-semibold text-primary-foreground opacity-50"
-          >
-            <Sparkles className="h-4 w-4" />
-            Gerar relatório
-          </button>
         </div>
 
-        <div className="mt-5 flex flex-col gap-3.5">
-          {reports.map((r) => (
-            <div key={r.id} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5.5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3.5">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <FileText className="h-[18px] w-[18px] text-primary" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <div className="font-heading text-[13.5px] font-semibold text-foreground">{r.periodLabel}</div>
-                  <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">gerado em {r.generatedAt}</div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <StatChip label="eventos" value={r.totalEvents} />
-                <StatChip label="alertas" value={r.totalAlerts} />
-                <StatChip label="high" value={r.highCount} tone="text-destructive" />
-                <StatChip label="medium" value={r.mediumCount} tone="text-warning" />
-              </div>
-
+        <div className="mt-5 grid gap-3.5 lg:grid-cols-3">
+          {PASSOS.map((p) => (
+            <div key={p.titulo} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5.5">
               <div className="flex items-center gap-2">
-                <DownloadButton label="HTML" />
-                <DownloadButton label="PDF" />
+                <p.icone className="h-4 w-4 text-primary" strokeWidth={1.75} />
+                <h3 className="font-heading text-[13.5px] font-semibold text-foreground">{p.titulo}</h3>
               </div>
+              <p className="text-[12.5px] text-muted-foreground">{p.texto}</p>
+              {p.codigo && (
+                <code className="block overflow-x-auto rounded-md border border-border bg-background px-3 py-2 font-mono text-[11.5px] text-foreground">
+                  {p.codigo}
+                </code>
+              )}
+              <p className="mt-auto text-[11.5px] text-muted-foreground">{p.rodape}</p>
             </div>
           ))}
         </div>
-
-        <p className="mt-5 text-[11.5px] text-muted-foreground">
-          Os relatórios são gerados pelo script de Fase 7 (Jinja2 + WeasyPrint). Os botões de download serão
-          habilitados quando essa página estiver conectada à API do backend.
-        </p>
       </div>
     </AppShell>
-  )
-}
-
-function StatChip({ label, value, tone }: { label: string; value: number; tone?: string }) {
-  return (
-    <span className="rounded-md bg-white/[0.05] px-2.5 py-1 text-[11px]">
-      <span className={tone ?? 'text-foreground'}>{value}</span> <span className="text-muted-foreground">{label}</span>
-    </span>
-  )
-}
-
-function DownloadButton({ label }: { label: string }) {
-  return (
-    <button
-      type="button"
-      disabled
-      title="Disponível quando o backend estiver conectado"
-      className="flex h-8 items-center gap-1.5 rounded-md border border-white/10 px-3 text-xs text-muted-foreground opacity-60"
-    >
-      <FileDown className="h-3.5 w-3.5" />
-      {label}
-    </button>
   )
 }
