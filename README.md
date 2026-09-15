@@ -280,6 +280,10 @@ Confirme que subiu:
 curl http://localhost:8000/health
 ```
 
+No PowerShell do Windows, escreva `curl.exe`, com o `.exe` no fim. Sem ele, `curl` é
+apelido do `Invoke-WebRequest`, que devolve um objeto de resposta e esconde o JSON dentro
+do campo `Content`.
+
 Resposta esperada, com `api`, `database` e `redis` em `ok`:
 
 ```json

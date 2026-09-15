@@ -35,6 +35,23 @@ Os endereços que os ataques usam:
 
 ---
 
+## Qual terminal usar
+
+Cada simulação diz de qual terminal ela precisa. A maioria roda em qualquer um, e duas
+não.
+
+Os blocos com laço `for`, com `\` quebrando a linha ou com JSON entre aspas simples usam
+sintaxe de shell Unix. No Linux e no macOS rodam direto. No Windows, rode pelo **Git
+Bash**, que vem junto com o Git, porque no PowerShell eles dão erro de sintaxe.
+
+O PowerShell tem outra pegadinha. Lá, `curl` é apelido do `Invoke-WebRequest`, um comando
+diferente, que devolve um objeto de resposta em vez do texto e interrompe com erro
+vermelho sempre que a resposta não é 2xx. Como várias simulações respondem 401 de
+propósito, o apelido faz parecer que o ataque falhou quando ele saiu normalmente. Escreva
+`curl.exe`, com o `.exe` no fim, e o comando volta a se comportar como este guia descreve.
+
+---
+
 ## Aviso sobre senha no honeypot
 
 O Cowrie grava em texto claro tudo que você digita numa sessão, **senha inclusive**.
@@ -224,6 +241,9 @@ no achado de propósito. Pra ver o alerta nascer, ela precisa somar com outro si
 
 Dois sinais que aparecem juntos num ataque de reconhecimento.
 
+**Terminal:** Git Bash no Windows, ou o terminal padrão no Linux e no macOS. Os dois
+laços abaixo são de shell Unix e o PowerShell não os entende.
+
 Varredura de rotas (muitos caminhos que não existem, quase todos 404):
 
 ```bash
@@ -256,6 +276,10 @@ IP, a soma passa de 90, o caso fica disponível pra prevenção tratar e aparece
 Esta é a função que transforma o Veryon de "observa a si mesmo" em "observa a API de
 um cliente". Um gateway externo manda o log de acesso em lote, e o mesmo motor de
 sinais roda em cima.
+
+**Terminal:** Git Bash no Windows, ou o terminal padrão no Linux e no macOS. O comando
+abaixo quebra em várias linhas com `\` e manda o JSON entre aspas simples, e o PowerShell
+trata os dois de outro jeito.
 
 Precisa da chave `INGEST_API_KEY` que você definiu no `.env`. Sem chave configurada,
 o endpoint recusa tudo (é de propósito).
