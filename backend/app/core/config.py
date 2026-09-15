@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     admin_username: str
     admin_password: str
 
+    # Origens que podem chamar a API do navegador, separadas por vírgula. O
+    # padrão cobre só o Vite local. Em produção, com o painel servido de outro
+    # endereço (nginx, domínio próprio), este valor precisa listar esse
+    # endereço, senão o navegador bloqueia a resposta antes de o JS ver ela.
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
     # De quanto em quanto tempo o backend recarrega a blocklist do banco.
     # Mesmo intervalo dos dois scripts de enforcement, entao o pior caso de
     # atraso continua sendo o mesmo nos dois atuadores.

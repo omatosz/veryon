@@ -65,7 +65,7 @@ if settings.api_traffic_capture:
     app.add_middleware(APILoggerMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[origem.strip() for origem in settings.cors_origins.split(",") if origem.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
