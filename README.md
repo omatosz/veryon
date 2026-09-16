@@ -346,6 +346,7 @@ os dados do banco, use `docker compose down -v`.
 | **Relatórios** | Como gerar o relatório SOC em HTML e PDF, que sai por um serviço à parte, sob demanda. |
 | **Armazenamento** | Quanto o banco ocupa e quando cada tabela comprime e apaga, com os prazos vindos do `.env`. |
 | **Usuários** | Só para admin. Dois papéis, analista e administrador, com o papel lido do banco a cada requisição. |
+| **Demonstração** | Só para admin, e só com `DEMO_MODE_ENABLED=true`. Um clique dispara todas as simulações de ataque em sequência. |
 
 ---
 
@@ -366,6 +367,10 @@ o usuário `root`, e em poucos segundos um alerta **high** aparece na tela de Al
 Use uma senha descartável: o honeypot grava em texto claro tudo que é digitado na
 sessão, então não vale a pena usar ali uma senha real de outro serviço.
 
+Pra rodar tudo isso de um clique só, sem terminal, existe a tela **Demonstração**, só
+pra administrador e só com `DEMO_MODE_ENABLED=true` no `.env`. Ver a seção 10 do guia
+de ataques.
+
 ---
 
 ## Deploy em produção
@@ -383,7 +388,9 @@ docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --
 Sobe banco, cache, API, motor de detecção, threat intel, scanner e o painel. Honeypot,
 alvo vulnerável e o coletor do honeypot ficam de fora de propósito: aquilo é
 laboratório de demonstração, e um cliente real quer o scanner apontado pros próprios
-ativos, não pro Juice Shop.
+ativos, não pro Juice Shop. Pelo mesmo motivo, `DEMO_MODE_ENABLED` fica sempre falso
+neste pacote: a tela que dispara ataque contra o próprio ambiente não existe onde não
+há o que atacar.
 
 Painel e API ficam em origens separadas: o backend publica a porta direto, e o nginx
 do painel só serve arquivo estático, sem proxy. TLS fica fora do pacote de propósito,
