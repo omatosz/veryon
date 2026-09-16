@@ -1,0 +1,148 @@
+name: soc-siem-prod
+
+# Compose de producao. Roda com:
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build
+#
+# Diferenca central pro compose de desenvolvimento, na raiz do repositorio: aqui nao
+# sobem honeypot, alvo vulneravel, coletor do honeypot nem o enforcer de netns. Aquilo e
+# laboratorio de demonstracao contra um ataque simulado; um cliente real quer o motor de
+# deteccao apontado para o trafego dele, nao um honeypot de treino. O que sobe e so o que
+# vira produto: banco, cache, API, painel, motor Sigma, enriquecimento de reputacao e
+# varredura de vulnerabilidade.
+#
+# Painel e API ficam em origens separadas de proposito (ver deploy/README.md): o backend
+# publica a porta 8000 direto, e o nginx do painel so serve arquivo estatico, sem proxy
+# nenhum. TLS fica de fora deste pacote; o README explica onde encaixar Caddy, Traefik ou
+# Cloudflare na frente.
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ../infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - core
+    # Sem porta publicada de proposito. So quem esta na rede "core" fala com o banco;
+    # expor 5432 pra internet e o tipo de coisa que vira manchete.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - core
+    # Mesmo motivo do banco: sem porta publicada.
+
+  backend:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+    # Sem --reload e sem montar ./backend/app por cima da imagem: os dois sao habito de
+    # desenvolvimento. Em produção o codigo que roda e o que foi commitado e buildado, e
+    # o --reload custa memoria e observa o disco a cada segundo pra nada.
+    command: sh -c "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - core
+
+  detection:
+    build:
+      context: ../detection
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # So leitura, e de proposito fora da imagem: trocar ou ajustar uma regra Sigma nao
+      # pode exigir rebuild. `docker compose restart detection` basta.
+      - ../detection/rules:/app/rules:ro
+    networks:
+      - core
+
+  threatintel:
+    build:
+      context: ../threatintel
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY}
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY}
+      OTX_API_KEY: ${OTX_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - core
+
+  scanner:
+    build:
+      context: ../scanner
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Sem alvo real configurado, o padrao varre os proprios servicos internos: nao
+      # acha vulnerabilidade de cliente nenhuma, mas prova que o scanner funciona sem
+      # exigir que alguem aponte pra algo antes do primeiro boot. Troque no deploy/.env
+      # pelos hosts e URLs reais que este Veryon deve vigiar.
+      NMAP_TARGETS: ${SCANNER_NMAP_TARGETS:-db:5432,redis:6379,backend:8000}
+      NUCLEI_TARGETS: ${SCANNER_NUCLEI_TARGETS:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - core
+
+  web:
+    build:
+      context: ../frontend
+      dockerfile: ../deploy/frontend.Dockerfile
+      # COPY sempre resolve a partir do contexto, nunca da pasta do Dockerfile. O
+      # nginx.conf mora em deploy/, fora do contexto do frontend, entao entra como
+      # contexto nomeado a mais em vez de trocar o contexto pra raiz do repo, o que
+      # mandaria .git e todo servico Python pro build do painel sem necessidade.
+      additional_contexts:
+        nginxconf: ../deploy
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:80"
+    networks:
+      - core
+
+networks:
+  core:
+    driver: bridge
+
+volumes:
+  db_data:
