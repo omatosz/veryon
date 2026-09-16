@@ -368,6 +368,30 @@ sessão, então não vale a pena usar ali uma senha real de outro serviço.
 
 ---
 
+## Deploy em produção
+
+O que está acima é o modo laboratório: honeypot, alvo vulnerável e Vite local, tudo
+pensado pra você atacar e ver o próprio pipeline reagir. Pra apontar o Veryon pra
+infraestrutura real de alguém, o pacote é outro, em **[deploy/](deploy/)**.
+
+```bash
+cp deploy/.env.production.example deploy/.env
+# edite deploy/.env
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build
+```
+
+Sobe banco, cache, API, motor de detecção, threat intel, scanner e o painel. Honeypot,
+alvo vulnerável e o coletor do honeypot ficam de fora de propósito: aquilo é
+laboratório de demonstração, e um cliente real quer o scanner apontado pros próprios
+ativos, não pro Juice Shop.
+
+Painel e API ficam em origens separadas: o backend publica a porta direto, e o nginx
+do painel só serve arquivo estático, sem proxy. TLS fica fora do pacote de propósito,
+com o **[deploy/README.md](deploy/README.md)** explicando onde encaixar um proxy
+reverso (Caddy, Traefik ou Cloudflare) na frente depois.
+
+---
+
 ## Decisões técnicas que valem comentário
 
 **Coleta de tráfego fora do caminho da requisição.** O middleware que observa a API
@@ -452,6 +476,7 @@ frontend/           Painel React/Vite
 landing/            Landing page, publicada via GitHub Pages
 infra/              Init do Postgres e regra de firewall
 docs/               Guias
+deploy/             Pacote de produção: compose, Dockerfile do painel e nginx
 ```
 
 ---
@@ -472,5 +497,6 @@ docs/               Guias
 - [x] Análise de comportamento de API e ingestão de log externo
 - [x] Prevenção de ameaça com política, simulação e trilha de auditoria
 - [x] Gráfico interativo e mapa de origem dos IPs
+- [x] Pacote de deploy de produção
 - [ ] Relatórios como rota de API, não script
 - [ ] Multi-tenant, pra apontar num cliente por vez
