@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     # endereço, senão o navegador bloqueia a resposta antes de o JS ver ela.
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # Liga a rota que dispara todas as simulacoes de ataque de uma vez. Fica
+    # desligada por padrao de proposito: um cliente de verdade nao tem
+    # honeypot nem alvo vulneravel no proprio ambiente (ver deploy/), entao um
+    # botao "ataque a mim mesmo" no painel dele nao serve pra nada. A rota
+    # devolve 404 com isto desligado, pra nem revelar que existe.
+    demo_mode_enabled: bool = False
+
     # De quanto em quanto tempo o backend recarrega a blocklist do banco.
     # Mesmo intervalo dos dois scripts de enforcement, entao o pior caso de
     # atraso continua sendo o mesmo nos dois atuadores.

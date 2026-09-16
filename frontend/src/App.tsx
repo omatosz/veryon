@@ -15,6 +15,7 @@ import { NotificationsPage } from '@/pages/NotificationsPage'
 import { RetentionPage } from '@/pages/RetentionPage'
 import { UsersPage } from '@/pages/UsersPage'
 import { ActorsPage } from '@/pages/ActorsPage'
+import { DemoPage } from '@/pages/DemoPage'
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
           <Route path="/retention" element={<RetentionPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/actors" element={<ActorsPage />} />
+          <Route path="/demo" element={<DemoPage />} />
         </Route>
       </Routes>
     </AuthProvider>

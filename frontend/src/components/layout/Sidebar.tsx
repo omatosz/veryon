@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, NavLink } from 'react-router-dom'
-import { Activity, Bell, Bug, FileText, HardDrive, LayoutGrid, LogOut, Radar, ShieldAlert, ShieldCheck, Telescope, Users, Fingerprint, X } from 'lucide-react'
+import { Activity, Bell, Bug, FileText, HardDrive, LayoutGrid, LogOut, PlayCircle, Radar, ShieldAlert, ShieldCheck, Telescope, Users, Fingerprint, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { getApiSummary, getPreventionSummary, getVulnSummary, listAlerts } from '@/lib/api'
+import { getApiSummary, getDemoStatus, getPreventionSummary, getVulnSummary, listAlerts } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 
 interface SidebarProps {
@@ -16,6 +16,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const [openVulnCount, setOpenVulnCount] = useState<number | null>(null)
   const [openApiCount, setOpenApiCount] = useState<number | null>(null)
   const [queueCount, setQueueCount] = useState<number | null>(null)
+  const [demoDisponivel, setDemoDisponivel] = useState(false)
   const { logout, isAdmin, user } = useAuth()
   const navigate = useNavigate()
 
@@ -50,10 +51,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       .catch(() => {
         if (!cancelled) setQueueCount(null)
       })
+    // Só existe com DEMO_MODE_ENABLED=true no backend. Desligado, a chamada
+    // devolve 404 e o item some do menu em vez de virar link morto.
+    if (isAdmin) {
+      getDemoStatus()
+        .then(() => {
+          if (!cancelled) setDemoDisponivel(true)
+        })
+        .catch(() => {
+          if (!cancelled) setDemoDisponivel(false)
+        })
+    }
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isAdmin])
 
   const navGroups: { label: string | null; items: { to: string; label: string; icon: typeof LayoutGrid; badge?: number | null }[] }[] = [
     { label: null, items: [{ to: '/dashboard', label: 'Dashboard', icon: LayoutGrid }] },
@@ -91,6 +103,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         ...(isAdmin ? [{ to: '/users', label: 'Usuários', icon: Users }] : []),
       ],
     },
+    // Só existe com DEMO_MODE_ENABLED=true no backend, e mesmo assim só pro
+    // admin: é rota que ataca o próprio laboratório, não faz sentido num
+    // ambiente de cliente real, que nem tem honeypot pra atacar.
+    ...(isAdmin && demoDisponivel
+      ? [{ label: 'Demonstração', items: [{ to: '/demo', label: 'Demonstração', icon: PlayCircle }] }]
+      : []),
   ]
 
   function handleLogout() {

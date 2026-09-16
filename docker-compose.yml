@@ -52,6 +52,13 @@ services:
       - ./backend/app:/app/app
     networks:
       - core
+    # Mesmo truque do scanner pra alcancar o Juice Shop: o backend fica de
+    # fora das redes honeypot_net e target_net de proposito (isolamento
+    # documentado no README), entao a demonstracao de um clique alcanca o
+    # Cowrie pela porta publicada no host, nao entrando na rede que nao
+    # confia. So importa com DEMO_MODE_ENABLED=true.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   cowrie:
     image: cowrie/cowrie:latest
