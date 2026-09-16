@@ -356,6 +356,49 @@ público de verdade, num honeypot exposto ou lendo o log de uma aplicação real
 
 ---
 
+## 10. Disparar tudo de uma vez
+
+Tudo o que veio até aqui também dá pra rodar de um clique só, sem abrir terminal
+nenhum. Existe pra demonstração ao vivo: menos tempo digitando comando, mais tempo
+explicando o que apareceu no painel.
+
+**Onde:** tela **Demonstração**, no menu. Só aparece pra quem loga como
+**administrador**, e só existe se o ambiente tiver `DEMO_MODE_ENABLED=true` no `.env`
+(desligado por padrão, e sempre desligado no pacote de produção em `deploy/`: um
+cliente de verdade não tem honeypot nem alvo vulnerável pra esse botão atacar).
+
+Clique em **Disparar demonstração completa**. Em segundo plano, nessa ordem:
+
+1. Enfileira a varredura de vulnerabilidade (ela continua rodando depois, em minutos).
+2. Login bem-sucedido no honeypot SSH.
+3. Força bruta no honeypot: seis tentativas recusadas.
+4. Injeção contra a própria API: SQLi, XSS e path traversal (seção 5).
+5. Varredura de 25 rotas inexistentes, mais rajada de 15 falhas de login (seção 6).
+6. Ingestão externa simulada em dois IPs com a mesma assinatura de cabeçalho, pra
+   fundir os dois num só ator (o mesmo efeito da seção 7, rodada duas vezes).
+7. Espera o motor de detecção processar, então liga a política **SSH-BRUTE** em
+   vigor.
+
+O botão devolve a resposta na hora; o que importa acontece nos 10 a 20 segundos
+seguintes, direto no painel. Abra **Eventos** e **Alertas** num canto pra acompanhar
+enchendo sozinho.
+
+**Sobre o último passo.** O IP de origem de tudo isto é sempre o gateway da rede
+Docker, ou seja, interno. Por isso a política, mesmo em vigor, não bloqueia nada de
+verdade: o trilho de segurança recusa bloquear um IP incerto, e a trilha de ações
+mostra `held` em vez de `applied`. É o motor de prevenção funcionando como deveria,
+não um defeito, e é também por que este botão nunca chama o bloqueio manual por
+alerta: aquele caminho não tem essa trava, e bloquear o próprio gateway trancaria o
+honeypot pra qualquer conexão, a sua inclusive, pelo tempo do prazo.
+
+Marcar uma vulnerabilidade como corrigida fica de fora do automático, de propósito: a
+varredura leva de dezenas de segundos a alguns minutos pra terminar, e esperar por ela
+tornaria o "um clique" bem mais lento do que a ideia pede. Ela fica pronta pra você
+olhar, e "corrigida" continua sendo um clique seu quando quiser, na tela de
+Vulnerabilidades.
+
+---
+
 ## Resumo: um ataque completo do começo ao fim
 
 Pra uma demonstração de ponta a ponta, nesta ordem:
@@ -368,7 +411,8 @@ Pra uma demonstração de ponta a ponta, nesta ordem:
 6. O mapa mostra de onde veio.
 
 Cada passo deixa rastro visível no painel. É o pipeline inteiro de um SOC, do
-primeiro pacote até a resposta, rodando na sua máquina.
+primeiro pacote até a resposta, rodando na sua máquina. A seção 10 faz os passos 1 a 3
+de uma vez, se preferir começar por ali e ir direto pra reação.
 
 ---
 

@@ -14,6 +14,7 @@ from app.api import (
     api_analysis,
     auth,
     blocklist as blocklist_api,
+    demo as demo_api,
     enrichment,
     events,
     ingest,
@@ -41,6 +42,14 @@ from app.core.seed import seed_admin_user
 from app.db.session import engine
 from app.middleware.api_logger import APILoggerMiddleware
 from app.middleware.blocklist import BlocklistMiddleware
+
+# Sem isto, todo `log.info` do projeto (api_analyzer, prevention, demo, etc.)
+# fica mudo: sem handler configurado, o Python usa WARNING como nivel padrao
+# e a chamada e descartada em silencio, nunca chegou a dar erro. So os
+# loggers do proprio uvicorn (as linhas de acesso HTTP) apareciam no
+# `docker compose logs backend`. Configurar aqui, uma vez, no processo
+# principal, destrava retroativamente todo log.info ja escrito no codigo.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-8s %(name)s: %(message)s")
 
 log = logging.getLogger("veryon")
 
@@ -86,6 +95,7 @@ app.include_router(notifications.router)
 app.include_router(retention_api.router)
 app.include_router(users.router)
 app.include_router(actors.router)
+app.include_router(demo_api.router)
 
 
 def rotas_registradas() -> list[tuple[str, str]]:

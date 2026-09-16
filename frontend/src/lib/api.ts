@@ -870,3 +870,17 @@ export function blockActor(ref: string) {
     { method: 'POST' },
   )
 }
+
+// --- Demonstração ---
+//
+// Só existe com DEMO_MODE_ENABLED=true no backend. Desligado, /demo/status
+// devolve 404, e é assim que o menu decide esconder o item em vez de mostrar
+// um link morto.
+
+export function getDemoStatus() {
+  return request<{ em_andamento: boolean }>('/demo/status')
+}
+
+export function runFullDemo() {
+  return request<{ iniciado: boolean; mensagem: string }>('/demo/run-attacks', { method: 'POST' })
+}
